@@ -94,6 +94,8 @@ export function Canvas({
   const onNodeMouseDown = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setSelectedId(id);
+    // 同步通知父组件打开右侧配置 Drawer
+    onSelectNode(id);
     const pos = getNodePos(id);
     const w = screenToWorld(e.clientX, e.clientY);
     setDragNode({ id, offsetX: w.x - pos.x, offsetY: w.y - pos.y });
@@ -351,18 +353,22 @@ export function Canvas({
               if (!def) return null;
               const pos = getNodePos(n.id);
               const totalPorts = def.inputs.length + def.outputs.length;
-              const h = heightOf(n.id, totalPorts);
+              // h 用"实测高度"，没有就用 fallback —— 但外层 div 不写死 style.height，
+              // 让 NodeRender 的内层 div 自然撑开，ResizeObserver 测真实高度传上来
+              const measured = nodeHeights[n.id];
+              const h = measured && measured > 0
+                ? measured
+                : Math.max(FALLBACK_NODE_H, HEADER_H + PORT_AREA_TOP_PAD + PORT_AREA_BOTTOM_PAD + totalPorts * (PORT_ROW_H + PORT_GAP_BETWEEN));
               return (
                 <g key={n.id} transform={`translate(${pos.x},${pos.y})`} data-node-pos={n.id}>
                   <foreignObject width={NODE_W} height={h}>
                     <div
                       onMouseDown={(e) => onNodeMouseDown(e, n.id)}
-                      onClick={(e) => { e.stopPropagation(); setSelectedId(n.id); }}
+                      onClick={(e) => { e.stopPropagation(); setSelectedId(n.id); onSelectNode(n.id); }}
                       className={cn(
                         'rounded-xl border bg-white shadow-sm cursor-grab active:cursor-grabbing transition-shadow',
                         selectedId === n.id ? 'border-brand-500 ring-2 ring-brand-200 shadow-md' : 'border-slate-200 hover:shadow-md',
                       )}
-                      style={{ height: h }}
                       data-node-height={h}
                     >
                       <NodeRender
@@ -370,7 +376,7 @@ export function Canvas({
                         def={def}
                         onStartEdge={(e) => startEdge(e, n.id)}
                         onCompleteEdge={(e) => completeEdge(e, n.id)}
-                        onMeasured={(measured) => measureNode(n.id, measured)}
+                        onMeasured={(m) => measureNode(n.id, m)}
                       />
                     </div>
                   </foreignObject>

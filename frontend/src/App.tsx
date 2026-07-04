@@ -19,6 +19,34 @@ import type { NodeDefinition, Workflow, WorkflowGraph } from '@/lib/types';
 
 const EMPTY_GRAPH: WorkflowGraph = { nodes: [], edges: [] };
 
+/**
+ * 给没有 meta.x/meta.y 的节点自动铺开：按节点索引 3 列网格排
+ * - 已有坐标的节点不动
+ * - 没坐标的节点按 "出现的顺序" 排成 3 列网格
+ */
+function autoLayoutNodes(g: WorkflowGraph): WorkflowGraph {
+  const COLS = 3;
+  const X0 = 160;
+  const Y0 = 120;
+  const DX = 280;
+  const DY = 200;
+  let freeIdx = 0;
+  return {
+    ...g,
+    nodes: g.nodes.map((n) => {
+      const hasPos = n.meta && typeof n.meta.x === 'number' && typeof n.meta.y === 'number';
+      if (hasPos) return n;
+      const col = freeIdx % COLS;
+      const row = Math.floor(freeIdx / COLS);
+      freeIdx += 1;
+      return {
+        ...n,
+        meta: { ...(n.meta || {}), x: X0 + col * DX, y: Y0 + row * DY, title: n.meta?.title },
+      };
+    }),
+  };
+}
+
 type View = { kind: 'home' } | { kind: 'editor'; wf: Workflow };
 
 export default function App() {

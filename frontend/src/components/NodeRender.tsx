@@ -64,8 +64,8 @@ export const NodeRender = forwardRef<NodeRenderHandle, Props>(function NodeRende
   }, [node.id, def.inputs.length, def.outputs.length]);
 
   return (
-    <div ref={innerRef} className="rounded-xl overflow-hidden" data-node-id={node.id} data-testid="node-render">
-      <div className={cn('h-1 w-full', bar)} />
+    <div ref={innerRef} data-node-id={node.id} data-testid="node-render" className="rounded-xl bg-white">
+      <div className={cn('h-1 w-full rounded-t-xl', bar)} />
       <div className="px-3 py-2.5 flex items-center gap-2">
         <span className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center shrink-0">
           <Icon className="w-3.5 h-3.5 text-slate-600" />
@@ -100,6 +100,23 @@ export const NodeRender = forwardRef<NodeRenderHandle, Props>(function NodeRende
           </div>
         ))}
       </div>
+      {/* 配置预览：让用户不打开 Drawer 也能看到关键字段（避免"啥也看不到"） */}
+      {(node.config && Object.keys(node.config).length > 0) && (
+        <div className="px-3 pb-2.5 pt-1 border-t border-slate-100 space-y-1">
+          {Object.entries(node.config).slice(0, 4).map(([k, v]) => {
+            const sv = typeof v === 'string' ? v : JSON.stringify(v);
+            const display = sv.length > 80 ? sv.slice(0, 80) + '…' : sv;
+            return (
+              <div key={k} className="text-[10.5px] text-slate-500 leading-snug">
+                <span className="text-slate-400">{k}:</span> <span className="font-mono text-slate-600 break-all">{display}</span>
+              </div>
+            );
+          })}
+          {Object.keys(node.config).length > 4 && (
+            <div className="text-[10px] text-slate-400 italic">+{Object.keys(node.config).length - 4} more fields</div>
+          )}
+        </div>
+      )}
     </div>
   );
 });
