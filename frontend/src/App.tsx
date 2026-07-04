@@ -1,55 +1,74 @@
+/**
+ * App 路由：Home（卡片网格） / Editor（点开某个工作流后）
+ *
+ * N8N / Dify 范式：
+ * - 默认显示所有工作流卡片
+ * - 点击卡片进入编辑页
+ * - 运行历史 / 节点配置 都是右侧 Drawer
+ */
 import { useCallback, useEffect, useState } from 'react';
-import { Cpu, Github } from 'lucide-react';
+import { ArrowLeft, Cpu, Save, Play, Loader2, History, X } from 'lucide-react';
 import { api } from '@/lib/api';
-import { WorkflowSidebar } from './components/WorkflowSidebar';
+import { cn } from '@/lib/utils';
+import { HomePage } from './pages/HomePage';
 import { NodePalette } from './components/NodePalette';
 import { Canvas } from './components/Canvas';
-import { RunHistoryPanel } from './components/RunHistoryPanel';
-import type { NodeDefinition, RunResult, Workflow, WorkflowGraph } from './lib/types';
+import { RunHistoryDrawer } from './components/RunHistoryDrawer';
+import { ConfigPanel } from './components/ConfigPanel';
+import type { NodeDefinition, Workflow, WorkflowGraph } from './lib/types';
 
 const EMPTY_GRAPH: WorkflowGraph = { nodes: [], edges: [] };
 
+type View = { kind: 'home' } | { kind: 'editor'; wf: Workflow };
+
 export default function App() {
+  const [view, setView] = useState<View>({ kind: 'home' });
   const [nodes, setNodes] = useState<NodeDefinition[]>([]);
-  const [workflows, setWorkflows] = useState<Workflow[]>([]);
-  const [current, setCurrent] = useState<Workflow | null>(null);
   const [graph, setGraph] = useState<WorkflowGraph>(EMPTY_GRAPH);
   const [currentName, setCurrentName] = useState('未命名工作流');
   const [health, setHealth] = useState<{ ok: boolean; version: string } | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // 启动拉节点 + 健康
+  // Drawers
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
+
+  // 当前选中节点
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  // ---- 启动 ----
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth({ ok: false, version: 'unknown' }));
     api.listNodes().then((d) => setNodes(d.nodes)).catch(console.error);
   }, []);
 
-  // 左侧列表 3s 自动刷新（拿到最新 run_count / last_status）
-  useEffect(() => {
-    const refresh = () => api.listWorkflows().then((d) => setWorkflows(d.workflows as any)).catch(console.error);
-    refresh();
-    const t = setInterval(refresh, 3000);
-    return () => clearInterval(t);
-  }, []);
-
-  // 切换 / 创建
-  const selectWorkflow = (wf: Workflow) => {
-    setCurrent(wf);
+  // ---- 路由 ----
+  const openWorkflow = async (wf: Workflow) => {
+    // 重新拉最新 graph（如果旧卡片里没有 graph）
+    let graphData = wf.graph;
+    if (!graphData) {
+      try {
+        const fresh = await api.getWorkflow(wf.id);
+        graphData = fresh.graph;
+      } catch (e) { graphData = EMPTY_GRAPH; }
+    }
+    setView({ kind: 'editor', wf: { ...wf, graph: graphData } });
+    setGraph(graphData);
     setCurrentName(wf.name);
-    setGraph(wf.graph || EMPTY_GRAPH);
-  };
-  const createNew = () => {
-    setCurrent(null);
-    setCurrentName('未命名工作流');
-    setGraph(EMPTY_GRAPH);
-  };
-  const deleteWorkflow = async (id: string) => {
-    await fetch(`/api/workflows/${id}`, { method: 'DELETE' });
-    if (current?.id === id) createNew();
-    const d = await api.listWorkflows();
-    setWorkflows(d.workflows as any);
+    setSelectedNodeId(null);
+    setConfigOpen(false);
+    setHistoryOpen(false);
   };
 
+  const backToHome = () => {
+    setView({ kind: 'home' });
+    setSelectedNodeId(null);
+    setConfigOpen(false);
+    setHistoryOpen(false);
+  };
+
+  // ---- 编辑 ----
   const addNode = (type: string) => {
     const def = nodes.find((n) => n.type === type);
     if (!def) return;
@@ -67,116 +86,265 @@ export default function App() {
       ],
       edges: [...graph.edges],
     });
-    setCurrentName((n) => (n === '未命名工作流' ? def.name + ' 工作流' : n));
+    if (currentName === '未命名工作流') setCurrentName(def.name + ' 工作流');
   };
 
-  /** 同步 Canvas 内部保存后拿到的 workflowId 到 current */
-  const updateWorkflowId = useCallback((id: string | null) => {
-    if (!id) return;
-    setCurrent((prev) => (prev ? { ...prev, id } : prev));
-    setWorkflows((prev) => {
-      if (prev.find((w) => w.id === id)) return prev;
-      // 临时占位：等左侧下次 3s 刷新会拿到真实数据
-      return prev;
+  const updateNodeConfig = (cfg: any) => {
+    if (!selectedNodeId) return;
+    setGraph({
+      ...graph,
+      nodes: graph.nodes.map((n) => (n.id === selectedNodeId ? { ...n, config: cfg } : n)),
     });
-  }, []);
+  };
 
-  /** 保存后拿到 id，刷新左侧列表 */
-  const onSave = useCallback(async (id: string) => {
-    const d = await api.listWorkflows();
-    setWorkflows(d.workflows as any);
-    const wf = (d.workflows as Workflow[]).find((w) => w.id === id);
-    if (wf) {
-      setCurrent(wf);
-      setCurrentName(wf.name);
-    }
-  }, []);
+  const deleteSelectedNode = () => {
+    if (!selectedNodeId) return;
+    setGraph({
+      nodes: graph.nodes.filter((n) => n.id !== selectedNodeId),
+      edges: graph.edges.filter((e) => e.source !== selectedNodeId && e.target !== selectedNodeId),
+    });
+    setSelectedNodeId(null);
+    setConfigOpen(false);
+  };
 
-  /** 跑工作流：先确保有 id，然后调 run_workflow */
-  const handleRun = useCallback(async () => {
-    let id = current?.id;
-    if (!id) {
-      // 还没保存 → 自动 save
-      const res = await api.saveWorkflow({
+  // ---- 保存 / 运行 ----
+  const handleSave = useCallback(async () => {
+    if (view.kind !== 'editor') return;
+    setIsSaving(true);
+    try {
+      await api.saveWorkflow({
+        id: view.wf.id,
         name: currentName || '未命名工作流',
         description: '',
         nodes: graph.nodes,
         edges: graph.edges,
       });
-      id = res.id;
-      setCurrent({ id, name: currentName, description: '', graph, created_at: 0, updated_at: 0 } as Workflow);
+    } catch (e) {
+      console.error(e);
+      alert('保存失败：' + (e as Error).message);
+    } finally {
+      setIsSaving(false);
     }
+  }, [view, currentName, graph]);
+
+  // Ctrl+S 保存
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (view.kind === 'editor') handleSave();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleSave, view]);
+
+  const handleRun = useCallback(async () => {
+    if (view.kind !== 'editor') return;
+    // 没保存过就先保存
+    if (!view.wf.id) {
+      await handleSave();
+    }
+    const targetWfId = view.wf.id;
     setIsRunning(true);
+    setHistoryOpen(true);
     try {
-      const r: RunResult = await api.runWorkflow(id, {});
-      // 跑完刷新左侧列表（拿到新 run_count + last_status）
-      const d = await api.listWorkflows();
-      setWorkflows(d.workflows as any);
-      void r; // 详情在 RunHistoryPanel 自行拉取
+      await api.runWorkflow(targetWfId, {});
     } catch (e) {
       console.error('run failed', e);
+      alert('运行失败：' + (e as Error).message);
     } finally {
       setIsRunning(false);
     }
-  }, [current, currentName, graph]);
+  }, [view, handleSave]);
 
+  // ---- 当前 wf 用于历史 / 配置 ----
+  const currentWf: Workflow | null = view.kind === 'editor'
+    ? { ...view.wf, name: currentName, graph }
+    : null;
+  const selectedNode = currentWf && selectedNodeId
+    ? currentWf.graph.nodes.find((n) => n.id === selectedNodeId) || null
+    : null;
+  const selectedDef = selectedNode ? nodes.find((n) => n.type === selectedNode.type) || null : null;
+
+  // ---- 渲染 ----
+  if (view.kind === 'home') {
+    return <HomePage onOpen={openWorkflow} />;
+  }
+
+  // ---- Editor ----
   return (
     <div className="h-full w-full flex flex-col bg-slate-50">
       {/* 顶栏 */}
-      <header className="h-12 shrink-0 glass border-b border-slate-200/70 flex items-center px-4 gap-3">
+      <header className="h-12 shrink-0 glass border-b border-slate-200/70 flex items-center px-3 gap-3">
+        <button
+          onClick={backToHome}
+          className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-100"
+          title="返回工作流列表"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>返回</span>
+        </button>
+        <div className="w-px h-5 bg-slate-200" />
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center">
-            <Cpu className="w-4 h-4 text-white" />
+          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center">
+            <Cpu className="w-3.5 h-3.5 text-white" />
           </div>
-          <div>
-            <div className="text-sm font-semibold text-slate-800 leading-tight">AWE</div>
-            <div className="text-[10px] text-slate-500 leading-tight">智能体工作流引擎</div>
-          </div>
+          <input
+            value={currentName}
+            onChange={(e) => setCurrentName(e.target.value)}
+            className="bg-transparent text-sm font-semibold text-slate-800 outline-none w-64 focus:bg-white/60 px-1.5 py-0.5 rounded transition-colors"
+            placeholder="工作流名称"
+          />
         </div>
-        <span className="ml-2 text-[11px] text-slate-400">v0.2.1</span>
-        <div className="ml-auto flex items-center gap-2 text-[11px] text-slate-500">
-          {health ? (
-            <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full ${health.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${health.ok ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-              {health.ok ? `后端已连接 · ${health.version}` : '后端离线'}
-            </span>
-          ) : (
-            <span>连接中…</span>
-          )}
-          <a className="hover:text-slate-800 flex items-center gap-1" href="https://github.com/" target="_blank" rel="noreferrer">
-            <Github className="w-3.5 h-3.5" />
-          </a>
+        <div className="ml-auto flex items-center gap-1.5">
+          <button
+            onClick={() => setHistoryOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-100"
+            title="运行历史"
+          >
+            <History className="w-3.5 h-3.5" />
+            <span>历史</span>
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+              "bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50",
+              "disabled:opacity-50",
+            )}
+            title="保存 (Ctrl+S)"
+          >
+            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            保存
+          </button>
+          <button
+            onClick={handleRun}
+            disabled={isRunning}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-white shadow-sm",
+              "bg-gradient-to-r from-brand-500 to-violet-500 hover:from-brand-600 hover:to-violet-600",
+              "disabled:opacity-50",
+            )}
+          >
+            {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+            {isRunning ? '运行中…' : '运行'}
+          </button>
         </div>
       </header>
 
-      {/* 4 栏布局：左 Sidebar | NodePalette | Canvas | RunHistory */}
+      {/* 主体：左 NodePalette + 中 Canvas */}
       <div className="flex-1 flex min-h-0">
-        <WorkflowSidebar
-          currentId={current?.id ?? null}
-          items={workflows}
-          onSelect={selectWorkflow}
-          onCreate={createNew}
-          onDelete={deleteWorkflow}
-        />
         <NodePalette onAdd={addNode} />
         <div className="flex-1 min-w-0">
           <Canvas
-            workflowId={current?.id ?? null}
+            workflowId={view.wf.id}
             workflowName={currentName}
             graph={graph}
             nodes={nodes}
             onChange={setGraph}
-            onWorkflowId={updateWorkflowId}
+            onWorkflowId={() => {}}
             onWorkflowName={setCurrentName}
-            onSave={onSave}
+            onSelectNode={(id) => { setSelectedNodeId(id); setConfigOpen(!!id); }}
+            onSave={() => {}}
           />
         </div>
-        <RunHistoryPanel
-          current={current}
-          onRun={handleRun}
-          isRunning={isRunning}
-        />
       </div>
+
+      {/* Drawer: 节点配置 */}
+      {selectedNode && selectedDef && (
+        <NodeConfigDrawer
+          open={configOpen}
+          node={selectedNode}
+          defName={selectedDef.name}
+          nodeType={selectedNode.type}
+          onClose={() => { setConfigOpen(false); setSelectedNodeId(null); }}
+          onDelete={deleteSelectedNode}
+          onChange={updateNodeConfig}
+        />
+      )}
+
+      {/* Drawer: 运行历史 */}
+      <RunHistoryDrawer
+        current={currentWf}
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onRun={handleRun}
+        isRunning={isRunning}
+      />
     </div>
+  );
+}
+
+/* ---------- 节点配置 Drawer ---------- */
+
+function NodeConfigDrawer({
+  open, node, defName, nodeType, onClose, onDelete, onChange,
+}: {
+  open: boolean;
+  node: { id: string; config?: any };
+  defName: string;
+  nodeType: string;
+  onClose: () => void;
+  onDelete: () => void;
+  onChange: (cfg: any) => void;
+}) {
+  // 借 ConfigPanel 复用：传入简化版 def（让 ConfigPanel 渲染通用 schema 表单）
+  const fakeDef: NodeDefinition = {
+    type: nodeType,
+    name: defName,
+    category: 'ai',
+    description: '',
+    icon: 'Box',
+    color: 'slate',
+    inputs: [],
+    outputs: [],
+    config_schema: {},
+  };
+  const fakeNode = { id: node.id, type: nodeType, config: node.config || {} } as any;
+  return (
+    <>
+      <div
+        onClick={onClose}
+        className={cn(
+          "fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-sm transition-opacity duration-200",
+          open ? "opacity-100" : "opacity-0 pointer-events-none",
+        )}
+      />
+      <aside
+        className={cn(
+          "fixed top-0 right-0 z-50 h-full w-[380px] max-w-[95vw] glass border-l border-slate-200/70 flex flex-col shadow-2xl",
+          "transition-transform duration-300 ease-out",
+          open ? "translate-x-0" : "translate-x-full",
+        )}
+      >
+        <div className="px-4 py-3 border-b border-slate-200/60 flex items-center justify-between shrink-0">
+          <div>
+            <div className="text-sm font-semibold text-slate-800">{defName}</div>
+            <div className="text-[11px] text-slate-500 mt-0.5">类型：{nodeType}</div>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onDelete}
+              className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+              title="删除节点"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              title="关闭"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <ConfigPanel node={fakeNode} def={fakeDef} onChange={onChange} />
+        </div>
+      </aside>
+    </>
   );
 }

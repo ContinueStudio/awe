@@ -62,7 +62,8 @@ def validate_graph(graph: Dict[str, Any]) -> List[str]:
     edges = graph.get("edges") or []
 
     if not nodes:
-        return ["图谱为空：请至少添加一个节点"]
+        # 允许保存空工作流（用户先创建后再编辑）
+        return []
 
     # 1) 节点类型与配置
     node_ids: List[str] = []

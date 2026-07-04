@@ -5,9 +5,58 @@
 
 ---
 
-## 1. 当前进度 (v0.2.1 - 2026-07-04 19:00)
+## 1. 当前进度 (v0.2.3 - 2026-07-04 22:20)
 
-### 1.0 今日进展 (2026-07-04 19:00)
+### 1.0 今日进展 (2026-07-04 22:20)
+
+**【本轮】修 vite build 缓存陷阱 + 验证 Home 页能跑通**
+- 🐛 **bug 复盘**：v0.2.2 的 N8N/Dify 重构（HomePage + view 状态机）代码是写好了，**但前端 dist 没真正重 build** —— 用户浏览器一直看到的是 19:30 那个老 Editor 界面
+- 🐛 **避坑**：vite build "成功 0 报错" 不代表产物更新 —— 清 `dist/` + `node_modules/.vite/` + 用 marker 验证才稳（详见 §3.20）
+- ✅ **验证结果**：
+  - `Remove-Item -Recurse dist, node_modules/.vite` + `npm run build` → dist 时间戳从 19:30 跳到 19:49
+  - 加 marker `console.log("🔥AWE_HOMEPAGE_MODULE_LOADED🔥")` 后 hash 终于从 `BAo_ENDH` 变成 `Cw9Qzamr`，说明新代码确实进了 dist
+  - `GET /api/health` → `{"ok":true,"version":"0.1.0"}`，后端 uvicorn 在 19:33 启动 serve 新 dist
+- 📋 **用户操作路径**（同 v0.2.2 不变）：
+  1. **硬刷新**浏览器（Ctrl+Shift+R 或 Ctrl+F5）→ 直接进入 **Home 页**
+  2. 看到工作流卡片网格（缩略图 + 状态点 + 名称 + 描述 + 运行数 + 时间）
+  3. 点击卡片 / 顶栏"新建工作流" → 进入 **Editor 页**
+  4. Editor 顶栏：返回 / 名称行内编辑 / 历史 / 保存 / 运行
+  5. 节点配置 = 右侧 Drawer；运行历史 = 右侧 Drawer
+- 📝 **dev 文档更新**：§3.20 记录 vite build 缓存陷阱，§1.0 标注 v0.2.3
+
+### 1.0 早期进展 (2026-07-04 22:00)
+
+**【本轮】重构为 N8N / Dify 范式：Home 页 + Editor 页二段式**
+- ✅ **架构改造**：拆为 Home（卡片网格） + Editor（点开工作流后）两种 view
+  - `frontend/src/pages/HomePage.tsx`（新增）：Dify 风格卡片网格
+    - 卡片信息：状态点（绿/红/琥珀/灰）+ 名称 + 描述 + 运行次数 + 最后运行时间
+    - 缩略图占位（节点数 > 0 显示 mock mini 节点，否则"空工作流"）
+    - 卡片右上角"⋮"菜单：重命名 / 复制 / 导出 JSON / 删除
+    - 重命名：Modal 弹窗 + Enter/Esc 快捷键
+    - 搜索框过滤工作流
+    - 顶栏：Logo + 后端状态（绿/红胶囊） + 搜索 + "新建工作流" 按钮
+  - `frontend/src/App.tsx`（重写）：`view: 'home' | 'editor'` 状态机切换
+    - Home 顶栏只展示连接状态和新建按钮
+    - Editor 顶栏：返回（ArrowLeft） + 名称（行内编辑） + 历史 / 保存（Ctrl+S） / 运行
+    - 运行历史用 Drawer 模式：`<RunHistoryDrawer open onClose />`
+    - 节点配置面板用 Drawer 模式：`<NodeConfigDrawer />`，点画布节点自动弹出
+- ✅ **组件改造**：
+  - `Canvas.tsx`：移除内置的右侧 ConfigPanel 和顶部工具条；新增 `onSelectNode` 回调把选中节点同步给 App
+  - 新建 `RunHistoryDrawer.tsx`：右侧 420px 抽屉，3s 自动刷新，Logs/Outputs/Inputs/Error 分 Section 折叠
+  - `WorkflowSidebar.tsx`：已不再使用（保留备用）
+- ✅ **后端 bug 修复**：
+  - `engine/validator.py`：允许保存空工作流（之前 saveWorkflow 在新建空工作流时会 400 拒绝）
+
+**用户操作路径（验证可用）**
+1. 打开 http://127.0.0.1:8765/ → **Home 页**：看到所有工作流卡片
+2. 点击卡片 / 点"新建工作流" → **进入 Editor**：左侧节点面板 + 中间画布 + 顶栏运行/历史/保存
+3. 点画布上的节点 → 右侧 Drawer 弹出节点配置
+4. 点顶栏"历史" → 右侧 Drawer 弹出运行历史（logs / outputs / inputs / error）
+5. 点顶栏"运行" → 自动保存 + 后台执行 + 历史 Drawer 自动打开 + 3s 轮询刷新
+
+**前端 build**：`1586 modules transformed, 214.82 kB │ gzip: 66.95 kB`
+
+### 1.1 早期进展 (2026-07-04 19:00)
 
 **【本轮】运行历史面板 + 工作流状态点 全链路打通**
 - ✅ **修复前端 build 错误**：`App.tsx` 中 `updateCurrentId` 未定义导致 tsc 失败，dist 实际是旧版
@@ -285,6 +334,46 @@ cd d:\AWE\backend
   - **API**（REST）= 8765，前端 fetch `/api/*` 用这个
   - **MCP**（streamable-http）= 8766，AI Agent / `mcp_awe` 工具用这个
   - 重启时两个一起 stop + start
+
+### 3.18 前后端不在一个页面是工作流平台的标准范式
+- **症状**：之前 AWE 把"工作流列表 / 节点面板 / 画布 / 运行历史"全塞在一个 4 栏布局里 → 用户进首页就面对一堆工具条，找不到入口
+- **正确范式**（N8N / Dify / Coze 通用）：
+  - **Home 页**（默认）：工作流卡片网格 + 新建按钮 + 搜索
+  - **Editor 页**（点开工作流才进入）：节点面板 + 画布 + 配置/历史 Drawer
+- **修复**：
+  - `App.tsx` 加 `view: 'home' | 'editor'` 状态
+  - HomePage 是默认 view，点击卡片/新建才进 Editor
+  - Canvas 内部删掉 ConfigPanel，改为 `onSelectNode` 回调让 App 打开 Drawer
+  - RunHistoryPanel 重写为 `RunHistoryDrawer`（受控 open/onClose）
+- **教训**：
+  - **永远先去看竞品**（N8N / Dify / Coze / Zapier），不要凭直觉设计
+  - 把"工作流平台"当一个产品类目看，已经有的范式不要重新发明
+  - 左侧常驻 sidebar 适合"已经选中了某个工作流之后"显示节点目录，但**不适合**作为首页入口
+
+### 3.20 vite build 增量缓存陷阱：dist hash 不变 = 旧版本
+- **症状**：完成 HomePage 重构后，`npm run build` 跑通 0 报错，dist 里有 `index.html` 和 assets，但 `Get-Item dist/assets/index-*.js` 显示**文件名 hash 跟上次完全一样**（`index-BAo_ENDH.js`，215531 bytes 一字节不差），且**dist 里搜不到 HomePage 的中文字符串**（`我的工作流` / `智能体` / `搜索工作流` 全部 0 命中）
+- **原因**：
+  - 第一次重构写完 `App.tsx` + `pages/HomePage.tsx` 后只做了 `npm run build`，但**忘了清 `dist/` 和 `node_modules/.vite/` 缓存**，加上 vite/esbuild 的某种内部缓存（可能在 `node_modules/.vite/deps_temp*` 或 rollup 的 snapshot），build 出来的 chunk 仍是上次的内容
+  - 用户浏览器打开 `http://127.0.0.1:8765/`，后端 FileResponse 把这个**旧的 dist** 返回给浏览器 → 用户看到的是老 Editor 界面而不是新 Home 页
+  - 进一步：浏览器又把旧 index.html + js 缓存了，即使后端换 dist 也仍是旧行为
+- **诊断三步法**（在没看到预期效果时必跑）：
+  1. `Get-Item dist/assets/index-*.js` → 看 `LastWriteTime` 和 `Length` 是否跟上一次一致
+  2. `Select-String -Path dist/assets/index-*.js -Pattern "某个唯一中文marker"` → 搜你代码里独有的字符串
+  3. `Remove-Item -Recurse -Force dist,node_modules/.vite` + `npm run build` → 强制清缓存重建
+- **决胜招**：往目标文件顶部加一个 `console.log('🔥UNIQUE_MARKER🔥')`，重新 build，看 dist 里 `UNIQUE_MARKER` 出现几次 —— 1 次说明打包成功，0 次说明 vite 还在吃旧 cache
+- **教训**：
+  - **"build 成功 + 0 报错" ≠ "dist 是新代码"**：增量缓存会让 vite 给出"看起来 OK 但其实是旧版本"的产物
+  - 项目里凡是涉及"用户视觉变化"的改动，**build 完必须用 marker 验证 dist 内容真的变了**
+  - **浏览器硬刷新（Ctrl+Shift+R / Ctrl+F5）才能跳过浏览器缓存** —— 普通 F5 会复用磁盘 cache
+  - `index.html` 里 `<script type="module" crossorigin src="/assets/index-XXXXX.js">` 那个 XXXXX 是按 chunk 内容算的 hash；hash 一样 = chunk 一字节不差 = 你看到的不是新代码
+
+### 3.19 后端 validator 拒绝空图会让"新建工作流"按钮静默失败
+- **症状**：前端点"新建工作流"没反应，控制台报 `400 图谱为空：请至少添加一个节点`
+- **原因**：HomePage 的 createNew 会立刻 `api.saveWorkflow({nodes:[], edges:[]})` 创建空白工作流，但后端 validator 在 `if not nodes: return ["图谱为空：..."]` 直接拒绝
+- **修复**：`validator.py` 改为 `if not nodes: return []`（允许保存空工作流，让用户先建后编辑）
+- **教训**：
+  - 校验的严格度要看场景：**保存**和**运行**是两步不同操作，保存可以宽松，运行必须严格
+  - 错误日志里 `TypeError: Failed to fetch` 误导性很大，真正的根因要看 400 错误体的 detail 字段
 
 ---
 

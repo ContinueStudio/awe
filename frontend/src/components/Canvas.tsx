@@ -9,12 +9,11 @@
  * 后续可在不改 API 的前提下替换为 flowgram 的 FreeLayoutEditor。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Trash2, Save, FilePlus2, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { CanvasEdge, CanvasNode, NodeDefinition, WorkflowGraph } from '@/lib/types';
 import { NodeRender } from './NodeRender';
-import { ConfigPanel } from './ConfigPanel';
 
 interface Props {
   workflowId: string | null;
@@ -24,6 +23,7 @@ interface Props {
   onChange: (g: WorkflowGraph) => void;
   onWorkflowId: (id: string | null) => void;
   onWorkflowName: (name: string) => void;
+  onSelectNode: (id: string | null) => void;
   onSave?: (id: string) => void;
 }
 
@@ -43,6 +43,7 @@ export function Canvas({
   onChange,
   onWorkflowId,
   onWorkflowName,
+  onSelectNode,
   onSave,
 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -265,20 +266,6 @@ export function Canvas({
     <div className="relative flex-1 flex">
       {/* 主画布 */}
       <div className="relative flex-1">
-        {/* 工具条 */}
-        <div className="absolute top-4 left-4 z-20 flex items-center gap-2 glass rounded-xl px-3 py-2 shadow-sm">
-          <input
-            value={workflowName}
-            onChange={(e) => onWorkflowName(e.target.value)}
-            className="bg-transparent text-sm font-medium text-slate-800 outline-none w-48"
-            placeholder="工作流名称"
-          />
-          <span className="text-slate-300">|</span>
-          <button onClick={save} className="awe-btn-secondary" title="保存 (Ctrl+S)">
-            <Save className="w-3.5 h-3.5" /> 保存
-          </button>
-        </div>
-
         {/* 缩放控件 */}
         <div className="absolute bottom-4 right-4 z-20 flex flex-col gap-1.5 glass rounded-xl p-1 shadow-sm">
           <button className="awe-icon-btn" onClick={() => setView((v) => ({ ...v, scale: Math.min(2.5, v.scale * 1.2) }))}>
@@ -364,28 +351,6 @@ export function Canvas({
           </g>
         </svg>
       </div>
-
-      {/* 右侧配置面板 */}
-      {selectedNode && selectedDef && (
-        <div className="w-80 border-l border-slate-200/70 glass flex flex-col">
-          <div className="px-4 py-3 border-b border-slate-200/60 flex items-center justify-between">
-            <div>
-              <div className="text-sm font-semibold text-slate-800">{selectedDef.name}</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">类型：{selectedNode.type}</div>
-            </div>
-            <button onClick={deleteSelected} className="text-slate-400 hover:text-rose-600" title="删除节点">
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-          <ConfigPanel
-            node={selectedNode}
-            def={selectedDef}
-            onChange={(cfg) => {
-              onChange({ ...graph, nodes: graph.nodes.map((x) => (x.id === selectedNode.id ? { ...x, config: cfg } : x)) });
-            }}
-          />
-        </div>
-      )}
     </div>
   );
 }

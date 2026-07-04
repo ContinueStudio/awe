@@ -31,7 +31,10 @@ data/awe.db
 data/awe.db-shm
 data/awe.db-wal
 data/logs/
+data/chroma/
 *.log
+backend/*.out
+backend/*.err
 
 # Env
 .env
