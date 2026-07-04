@@ -11,7 +11,7 @@
  * 保留不变：Home 页、RunHistoryDrawer、后端 API
  */
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Undo2, Redo2, Save, Play, Loader2, X, Cpu } from 'lucide-react';
+import { ArrowLeft, Undo2, Redo2, Save, Play, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { HomePage } from './pages/HomePage';
@@ -24,16 +24,16 @@ import type { NodeDefinition, Workflow, WorkflowGraph } from '@/lib/types';
 const EMPTY_GRAPH: WorkflowGraph = { nodes: [], edges: [] };
 
 /**
- * 给没有 meta.x/meta.y 的节点自动铺开：按节点索引 6 列网格排
+ * 给没有 meta.x/meta.y 的节点自动铺开：按节点索引 3 列网格排（lawe 风格）
  * - 已有坐标的节点不动
- * - 没坐标的节点按 "出现的顺序" 排成 6 列网格
+ * - 没坐标的节点按 "出现的顺序" 排成 3 列网格
  */
 function autoLayoutNodes(g: WorkflowGraph): WorkflowGraph {
-  const COLS = 6;
-  const X0 = 160;
+  const COLS = 3;
+  const X0 = 200;
   const Y0 = 120;
   const DX = 380;
-  const DY = 220;
+  const DY = 200;
   let freeIdx = 0;
   return {
     ...g,
@@ -121,7 +121,7 @@ export default function App() {
           id,
           type,
           config: {},
-          meta: { title: def.name, x: 200 + (step % 6) * 380, y: 180 + Math.floor(step / 6) * 220 },
+          meta: { title: def.name, x: 200 + (step % 3) * 380, y: 120 + Math.floor(step / 3) * 200 },
         },
       ],
       edges: [...graph.edges],
@@ -243,12 +243,15 @@ export default function App() {
           </button>
           <div style={{ width: 1, height: 20, background: '#E5E6EB' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 26, height: 26, borderRadius: 6,
-              background: 'linear-gradient(135deg, #4D53E8 0%, #7C3AED 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Cpu size={14} color="#fff" strokeWidth={2.4} />
+            {/* logo 字符 'A'（lawe 风格：纯色方块 + 字符） */}
+            <div
+              style={{
+                width: 26, height: 26, borderRadius: 6,
+                background: '#4D53E8',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>A</span>
             </div>
             <input
               value={currentName}
@@ -268,7 +271,7 @@ export default function App() {
               placeholder="工作流名称"
             />
           </div>
-          <span style={{ fontSize: 11, color: '#C9CDD4', fontWeight: 500 }}>v0.2.4</span>
+          <span style={{ fontSize: 11, color: '#C9CDD4', fontWeight: 500 }}>v0.2.9</span>
         </div>
 
         {/* 右：撤销 / 重做 / 保存 / 运行 */}
@@ -364,8 +367,6 @@ export default function App() {
           showNodePanel={showNodePanel}
           onToggleNodePanel={() => setShowNodePanel((v) => !v)}
           zoom={zoom}
-          onZoomIn={() => setZoom((z) => Math.min(2.5, z + 0.1))}
-          onZoomOut={() => setZoom((z) => Math.max(0.3, z - 0.1))}
           nodeCount={graph.nodes.length}
         />
 
@@ -410,21 +411,21 @@ export default function App() {
             </ul>
           </div>
         )}
-      </div>
 
-      {/* Drawer: 节点配置（Editor 内） */}
-      {selectedNode && selectedDef && (
-        <NodeConfigDrawer
-          open={configOpen}
-          node={selectedNode}
-          def={selectedDef}
-          onClose={() => { setConfigOpen(false); setSelectedNodeId(null); }}
-          onDelete={deleteSelectedNode}
-          onChange={updateNodeConfig}
-          isRunning={isRunning}
-          onRun={handleRun}
-        />
-      )}
+        {/* 节点配置面板（lawe 风格：右侧悬浮，无遮罩） */}
+        {selectedNode && selectedDef && configOpen && (
+          <NodeConfigDrawer
+            open={configOpen}
+            node={selectedNode}
+            def={selectedDef}
+            onClose={() => { setConfigOpen(false); setSelectedNodeId(null); }}
+            onDelete={deleteSelectedNode}
+            onChange={updateNodeConfig}
+            isRunning={isRunning}
+            onRun={handleRun}
+          />
+        )}
+      </div>
 
       {/* Toast */}
       {toast && (
@@ -442,7 +443,7 @@ export default function App() {
   );
 }
 
-/* ---------- 节点配置 Drawer（lawe 风格） ---------- */
+/* ---------- 节点配置 Drawer（lawe 风格：右侧悬浮，绝对定位，无遮罩） ---------- */
 
 function NodeConfigDrawer({
   open, node, def, onClose, onDelete, onChange, isRunning, onRun,
@@ -468,141 +469,140 @@ function NodeConfigDrawer({
   };
   const color = COLOR_BAR[def.color] || COLOR_BAR.slate;
 
+  if (!open) return null;
+
   return (
-    <>
+    <aside
+      className="absolute right-4 top-4 z-30 flex flex-col"
+      style={{
+        width: 380,
+        maxHeight: 'calc(100% - 80px)',
+        background: '#ffffff',
+        border: '1px solid #E5E6EB',
+        borderRadius: 12,
+        boxShadow: 'var(--shadow-float)',
+        fontSize: 13,
+        overflow: 'hidden',
+      }}
+    >
+      {/* 标题栏（lawe 风格：图标 + 名称 + 类型副标题 + 运行/关闭） */}
       <div
-        onClick={onClose}
-        className={cn(
-          'fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-sm transition-opacity duration-200',
-          open ? 'opacity-100' : 'opacity-0 pointer-events-none',
-        )}
-      />
-      <aside
-        className={cn(
-          'fixed top-0 right-0 z-50 h-full w-[380px] max-w-[95vw] flex flex-col shadow-2xl',
-          'transition-transform duration-300 ease-out',
-          open ? 'translate-x-0' : 'translate-x-full',
-        )}
         style={{
-          background: '#ffffff',
-          borderLeft: '1px solid #E5E6EB',
-          fontSize: 13,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 14px', borderBottom: '1px solid #F3F4F6', flexShrink: 0,
         }}
       >
-        {/* 标题栏（lawe 风格：图标 + 名称 + 类型 + 运行/删除/关闭） */}
-        <div
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '12px 16px', borderBottom: '1px solid #F3F4F6', flexShrink: 0,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <div
-              style={{
-                width: 28, height: 28, borderRadius: 8, background: color,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>
-                {def.name.charAt(0)}
-              </span>
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{
-                fontSize: 14, fontWeight: 600, color: '#1D2129',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {def.name}
-              </div>
-              <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{def.type}</div>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          {/* 首字母字符图标（与 lawe 一致） */}
+          <div
+            style={{
+              width: 26, height: 26, borderRadius: 6, background: color,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>
+              {def.name.charAt(0)}
+            </span>
           </div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button
-              onClick={onRun}
-              disabled={isRunning}
-              title="试运行"
-              style={{
-                width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: '1px solid #E5E6EB', background: '#fff',
-                cursor: isRunning ? 'wait' : 'pointer', opacity: isRunning ? 0.5 : 1,
-              }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="#4D53E8">
-                <polygon points="8 5 19 12 8 19 8 5" />
-              </svg>
-            </button>
-            <button
-              onClick={onClose}
-              title="关闭"
-              style={{
-                width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: '1px solid #E5E6EB', background: '#fff', cursor: 'pointer',
-              }}
-            >
-              <X size={13} color="#6B7280" />
-            </button>
+          <div style={{ minWidth: 0 }}>
+            <div style={{
+              fontSize: 14, fontWeight: 600, color: '#111827',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {def.name}
+            </div>
+            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{def.category} · {def.type}</div>
           </div>
         </div>
-
-        {/* 配置表单 */}
-        <div className="flex-1 overflow-y-auto" style={{ padding: '12px 16px' }}>
-          <ConfigPanel node={fakeNode} def={def} onChange={onChange} />
-
-          {/* 分隔线 */}
-          <div style={{ height: 1, background: '#ECEEF0', margin: '16px 0' }} />
-
-          {/* 输出变量 */}
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#1D2129', marginBottom: 8 }}>输出变量</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {def.outputs && def.outputs.length > 0 ? (
-              def.outputs.map((o, i) => (
-                <span
-                  key={i}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                    background: '#EEF0FF', padding: '2px 8px', borderRadius: 4,
-                    fontSize: 11,
-                  }}
-                >
-                  <span style={{ color: '#86909C' }}>{o.type}</span>
-                  <span style={{ color: '#1D2129', fontWeight: 500 }}>{o.name}</span>
-                </span>
-              ))
-            ) : (
-              <span style={{ fontSize: 12, color: '#9CA3AF' }}>无输出</span>
-            )}
-          </div>
-
-          {/* 分隔线 */}
-          <div style={{ height: 1, background: '#ECEEF0', margin: '16px 0' }} />
-
-          {/* 删除 */}
+        <div style={{ display: 'flex', gap: 4 }}>
           <button
-            onClick={onDelete}
+            onClick={onRun}
+            disabled={isRunning}
+            title="试运行"
             style={{
-              width: '100%', padding: '6px 0', borderRadius: 6,
-              background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
-              fontSize: 12, cursor: 'pointer', fontWeight: 500,
+              width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '1px solid #E5E6EB', background: '#fff',
+              cursor: isRunning ? 'wait' : 'pointer', opacity: isRunning ? 0.5 : 1,
             }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#FEE2E2')}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#FEF2F2')}
           >
-            删除节点
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="#4D53E8">
+              <polygon points="8 5 19 12 8 19 8 5" />
+            </svg>
+          </button>
+          <button
+            onClick={onClose}
+            title="关闭"
+            style={{
+              width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '1px solid #E5E6EB', background: '#fff', cursor: 'pointer',
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
+              <path d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
+      </div>
 
-        {/* 底部状态 */}
-        <div
-          style={{
-            display: 'flex', alignItems: 'center', padding: '6px 16px',
-            borderTop: '1px solid #F3F4F6', background: '#FAFBFC', flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: 11, color: '#86909C' }}>{def.category} · {def.type}</span>
+      {/* 配置表单 */}
+      <div className="thin-scroll flex-1 overflow-y-auto" style={{ padding: '12px 14px' }}>
+        <ConfigPanel node={fakeNode} def={def} onChange={onChange} />
+
+        {/* 分隔线 */}
+        <div style={{ height: 1, background: '#ECEEF0', margin: '12px 0' }} />
+
+        {/* 输出变量 */}
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#0D1D32', marginBottom: 6 }}>输出变量</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {def.outputs && def.outputs.length > 0 ? (
+            def.outputs.map((o, i) => (
+              <span
+                key={i}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 2,
+                  background: '#EEF0FF', padding: '2px 8px', borderRadius: 4,
+                  fontSize: 11,
+                }}
+              >
+                <span style={{ color: '#86909C' }}>{o.type}</span>
+                <span style={{ color: '#1D2129', fontWeight: 500 }}>{o.name}</span>
+              </span>
+            ))
+          ) : (
+            <span style={{ fontSize: 12, color: '#9CA3AF' }}>无输出</span>
+          )}
         </div>
-      </aside>
-    </>
+
+        {/* 分隔线 */}
+        <div style={{ height: 1, background: '#ECEEF0', margin: '12px 0' }} />
+
+        {/* 删除 */}
+        <button
+          onClick={onDelete}
+          style={{
+            width: '100%', padding: '6px 0', borderRadius: 6,
+            background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
+            fontSize: 12, cursor: 'pointer', fontWeight: 500,
+          }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#FEE2E2')}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#FEF2F2')}
+        >
+          删除节点
+        </button>
+      </div>
+
+      {/* 底部状态栏 */}
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', padding: '6px 14px',
+          borderTop: '1px solid #F3F4F6', background: '#FAFBFC', flexShrink: 0,
+        }}
+      >
+        <span style={{ fontSize: 11, color: '#86909C' }}>
+          {def.category} · {def.type}
+        </span>
+      </div>
+    </aside>
   );
 }

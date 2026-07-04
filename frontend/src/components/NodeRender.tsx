@@ -1,20 +1,17 @@
 /**
  * 单节点渲染（lawe 风格）
  * - 340px 宽、minHeight 72、渐变背景、圆角 12
- * - icon 28x28 圆角 8、title 15px bold
+ * - icon 28x28 圆角 8、首字母字符（与 lawe 一致）
+ * - title 15px bold
  * - 按节点类型显示 config 预览（python/http/llm/skill/...）
  * - 选中态：蓝色边框 + 蓝色阴影 + 顶部出现「复制/删除」按钮
  */
 import { useEffect, useRef } from 'react';
-import { Brain, Database, Globe, UserCheck, Webhook, Flag, GitBranch, Braces, Wand2, Table2, PlugZap, Code2, Copy, Trash2 } from 'lucide-react';
+import { Copy, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CanvasNode, NodeDefinition } from '@/lib/types';
 
-const ICONS: Record<string, any> = {
-  Brain, Database, Globe, UserCheck, Webhook, Flag, GitBranch, Braces, Wand2, Table2, PlugZap, Code2,
-};
-
-// 按 AWE 节点类型映射颜色（与 lawe nodeCatalog 风格一致）
+// 节点类型 → 颜色块（与 lawe 风格保持一致：emerald=绿、violet=紫、amber=橙、sky=蓝、rose=红、slate=主色）
 const COLOR_BAR: Record<string, string> = {
   emerald: '#00B42A',
   violet: '#7C3AED',
@@ -22,15 +19,6 @@ const COLOR_BAR: Record<string, string> = {
   sky: '#0EA5E9',
   rose: '#F53F3F',
   slate: '#4D53E8',
-};
-
-const COLOR_BG: Record<string, string> = {
-  emerald: 'rgba(0, 180, 42, 0.12)',
-  violet: 'rgba(124, 58, 237, 0.12)',
-  amber: 'rgba(255, 125, 0, 0.12)',
-  sky: 'rgba(14, 165, 233, 0.12)',
-  rose: 'rgba(245, 63, 63, 0.12)',
-  slate: 'rgba(77, 83, 232, 0.12)',
 };
 
 interface Props {
@@ -46,9 +34,7 @@ interface Props {
 }
 
 export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, onDelete, onStartEdge, onCompleteEdge, onMeasured }: Props) {
-  const Icon = ICONS[def.icon] || Code2;
   const color = COLOR_BAR[def.color] || COLOR_BAR.slate;
-  const iconBg = COLOR_BG[def.color] || COLOR_BG.slate;
   const cfg = (node.config || {}) as Record<string, any>;
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -80,14 +66,17 @@ export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, on
     >
       {/* header */}
       <div className="flex items-center" style={{ marginBottom: 8 }}>
+        {/* 首字母字符图标（与 lawe 一致） */}
         <div
           style={{
-            width: 28, height: 28, background: iconBg, borderRadius: 8,
+            width: 28, height: 28, background: color, borderRadius: 8,
             display: 'flex', justifyContent: 'center', alignItems: 'center',
-            marginRight: 10, flexShrink: 0, color,
+            marginRight: 10, flexShrink: 0,
           }}
         >
-          <Icon size={16} strokeWidth={2.4} />
+          <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>
+            {(def.name || node.type).charAt(0)}
+          </span>
         </div>
         <span
           style={{

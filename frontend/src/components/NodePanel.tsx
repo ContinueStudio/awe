@@ -2,16 +2,12 @@
  * 节点面板（lawe 风格 - 底部悬浮）
  * - 白底圆角 16 + 阴影 + 搜索框
  * - 按分类分组（2 列网格）
+ * - 节点 icon 用首字母字符（与 lawe 一致）
  * - 顶部三角形指示器指向 BottomToolbar
  */
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import type { NodeDefinition } from '@/lib/types';
-import { Brain, Database, Globe, UserCheck, Webhook, Flag, GitBranch, Braces, Wand2, Table2, PlugZap, Code2 } from 'lucide-react';
-
-const ICONS: Record<string, any> = {
-  Brain, Database, Globe, UserCheck, Webhook, Flag, GitBranch, Braces, Wand2, Table2, PlugZap, Code2,
-};
 
 // 节点类型 → 颜色块（与 lawe 风格保持一致：emerald=绿、violet=紫、amber=橙、sky=蓝、rose=红、slate=主色）
 const COLOR_BAR: Record<string, string> = {
@@ -125,7 +121,6 @@ export function NodePanel({ onAdd }: Props) {
         {CATEGORY_ORDER.map((cat) => {
           const list = grouped[cat] || [];
           if (list.length === 0) return null;
-          const Icon = ICONS[list[0]?.icon as any] || Code2;
           return (
             <div key={cat} style={{ marginBottom: 12 }}>
               <div
@@ -150,7 +145,6 @@ export function NodePanel({ onAdd }: Props) {
               >
                 {list.map((item) => {
                   const color = COLOR_BAR[item.color] || COLOR_BAR.slate;
-                  const ItemIcon = ICONS[item.icon] || Code2;
                   return (
                     <button
                       key={item.type}
@@ -170,6 +164,7 @@ export function NodePanel({ onAdd }: Props) {
                       onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#F3F4F6')}
                       onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'transparent')}
                     >
+                      {/* 首字母字符图标（与 lawe 一致） */}
                       <div
                         style={{
                           width: 24,
@@ -182,7 +177,9 @@ export function NodePanel({ onAdd }: Props) {
                           flexShrink: 0,
                         }}
                       >
-                        <ItemIcon size={13} color="#fff" strokeWidth={2.4} />
+                        <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>
+                          {(item.name || item.type).charAt(0)}
+                        </span>
                       </div>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ fontSize: 13, color: '#374151', fontWeight: 500, lineHeight: 1.3 }}>

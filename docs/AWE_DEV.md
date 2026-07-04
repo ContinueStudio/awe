@@ -5,7 +5,21 @@
 
 ---
 
-## 1. 当前进度 (v0.2.8 - 2026-07-05 07:30)
+## 1. 当前进度 (v0.2.9 - 2026-07-05 07:45)
+
+### 1.0 今日进展 (2026-07-05 07:45)
+
+**【本轮】v0.2.9：lawe 风格精修（去掉 +/- 缩放按钮、logo 改字母）**
+- 🎨 **改动**：
+  1. **BottomToolbar**：移除 +/- 缩放按钮（lawe 没有，只显示百分比）。同步移除 `onZoomIn/onZoomOut` props 和 `App.tsx` 中对应调用
+  2. **App.tsx logo**：从渐变 Cpu 图标改为纯色 `#4D53E8` 方块 + 字母 `A`（与 lawe 的 `L` 风格一致）
+  3. **App.tsx 版本号**：v0.2.4 → v0.2.9
+  4. **App.tsx 清理**：移除 `lucide-react` 中未用的 `Cpu`、`X` 引用
+- 🐛 **避坑**：
+  - **lucide-react tree-shaking 不完全**：即使 import 后未使用，`vite build` 仍会把整组 SVG 节点定义压入 bundle。需要从 `import` 中删除未用项（如果 hash 不变也不影响功能）
+  - **Prop 同步**：删除子组件 props 时要同步删除父组件传值，否则会有 console warning
+- ✅ **build 验证**：`npm run build` → 1587 modules → dist hash `DZlfHYcZ`（与上次 `CThBIgqk` 不同）→ 221.37 kB / gzip 69.12 kB
+- ✅ **bundle 验证**：grep `v0\.2\.9` 命中；grep `Vh({onTestRun` 中无 `onZoomIn`；logo div 含 `background:"#4D53E8"` + 字母 `"A"`
 
 ### 1.0 今日进展 (2026-07-05 07:30)
 

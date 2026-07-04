@@ -2,6 +2,7 @@
  * 底部悬浮工具栏（参考 lawe 风格）
  * - 白底 + 圆角 12 + 柔和阴影
  * - 居中悬浮：+ 节点 / 缩放比例 / 试运行 / 节点数
+ * - 注：lawe 没有 +/- 缩放按钮，仅显示百分比
  */
 interface Props {
   onTestRun: () => void;
@@ -9,8 +10,6 @@ interface Props {
   showNodePanel: boolean;
   onToggleNodePanel: () => void;
   zoom: number;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
   nodeCount: number;
 }
 
@@ -20,8 +19,6 @@ export function BottomToolbar({
   showNodePanel,
   onToggleNodePanel,
   zoom,
-  onZoomIn,
-  onZoomOut,
   nodeCount,
 }: Props) {
   return (
@@ -76,58 +73,19 @@ export function BottomToolbar({
 
       <div style={{ width: 1, height: 20, background: '#E5E6EB' }} />
 
-      {/* 缩放控制 */}
-      <button
-        onClick={onZoomOut}
-        style={{
-          width: 24,
-          height: 32,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'transparent',
-          border: 'none',
-          color: '#4E5969',
-          cursor: 'pointer',
-        }}
-        title="缩小"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-      </button>
+      {/* 缩放比例（与 lawe 一致：纯文字） */}
       <span
         style={{
           fontSize: 12,
           color: '#86909C',
           padding: '0 4px',
-          minWidth: 44,
+          minWidth: 36,
           textAlign: 'center',
           userSelect: 'none',
         }}
       >
         {Math.round(zoom * 100)}%
       </span>
-      <button
-        onClick={onZoomIn}
-        style={{
-          width: 24,
-          height: 32,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'transparent',
-          border: 'none',
-          color: '#4E5969',
-          cursor: 'pointer',
-        }}
-        title="放大"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-      </button>
 
       <div style={{ width: 1, height: 20, background: '#E5E6EB' }} />
 
