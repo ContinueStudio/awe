@@ -84,6 +84,10 @@ class WorkflowBuilder:
                     src_out = state.get("outputs", {}).get(e["source"])
                     if src_out is not None:
                         upstream[e["source"]] = src_out
+            # 顺便把 run 入口的 inputs 塞进沙盒（用 __user_inputs__ 隔离），让节点能拿到 close 这类开关
+            user_inputs = state.get("inputs") or {}
+            if user_inputs:
+                upstream["__user_inputs__"] = user_inputs
             outputs = await _run_skill(cfg, upstream)
         elif ntype == "human":
             # 人类审批：挂起；前端需要调用 /runs/{id}/resume

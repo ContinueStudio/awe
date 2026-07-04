@@ -45,21 +45,29 @@ edge_path = next((p for p in candidates if os.path.exists(p)), None)
 if not edge_path:
     raise FileNotFoundError("未找到 Edge: " + " | ".join(candidates))
 
+# Windows 关键：DETACHED_PROCESS (0x00000008) + CREATE_NEW_PROCESS_GROUP (0x00000200)
+# 不加这两个 flag，Edge 进程会跟沙盒 executor 线程的 console handle 绑定，
+# 沙盒节点 return 时子进程会被一起回收 —— 表现就是"窗口闪一下就消失"。
+DETACHED_PROCESS = 0x00000008
+CREATE_NEW_PROCESS_GROUP = 0x00000200
+
 # 用 subprocess.Popen 列表式启动（沙盒禁止 shell=True），后台运行
-# --headless 不显示窗口，避免用户不知情时被打开浏览器；想看效果去掉这行
-proc = subprocess.Popen([
-    edge_path,
-    "--new-window",
-    "--window-size=1280,800",
-    "https://www.baidu.com",
-])
-time.sleep(1.5)  # 给浏览器一点时间启动
-print(f"[n2] Edge started, pid={proc.pid}, path={edge_path}")
+# --new-window: 强制开新窗口
+# --window-size: 固定 1280x800
+# 第一个参数如果是 URL，Edge 会自动定位到该 URL
+proc = subprocess.Popen(
+    [edge_path, "--new-window", "--window-size=1280,800", "https://www.baidu.com"],
+    creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+    close_fds=True,
+)
+print(f"[n2] Edge Popen returned, pid={proc.pid}")
+# 不再 sleep —— 立刻让 n3 / n4 跑。n3 会 sleep 几秒后再查任务列表。
 result = {
     "pid": proc.pid,
     "edge_path": edge_path,
     "url": "https://www.baidu.com",
     "started_at": time.time(),
+    "creation_flags": "DETACHED_PROCESS|CREATE_NEW_PROCESS_GROUP",
 }
 '''.strip()
 
@@ -71,22 +79,22 @@ import time
 # n2 透传的 Edge 启动信息
 n2_info = ((inputs or {}).get("n2") or {}).get("result", {}) or {}
 pid = n2_info.get("pid")
-edge_path = n2_info.get("edge_path")
 if not pid:
     raise RuntimeError("n2 没拿到 pid，链路断了")
 
-# 等待页面加载
-time.sleep(3)
+# 等待 Edge 完成 fork + 加载百度（首次启动可能需要 4~6s）
+time.sleep(5)
 
-# Edge 是多进程模型：主进程 1.5s 后会 fork 出 renderer / gpu 进程后自己退出。
-# 所以不能查"主进程 PID"，要查"msedge.exe 任意进程"是否存在。
+# Edge 是多进程模型：主进程 fork 出 renderer / gpu 进程后，主进程会退出，
+# 但 msedge.exe 会有多个子进程在跑（1 个 browser 主进程 + N 个 renderer/gpu/utility）。
 # encoding="utf-8" 避免 Windows 默认 GBK 报错
 tasklist = subprocess.run(
-    ["tasklist", "/FI", "IMAGENAME eq msedge.exe", "/FO", "LIST"],
+    ["tasklist", "/FI", "IMAGENAME eq msedge.exe", "/FO", "LIST", "/V"],
     capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace",
 )
-# 统计 msedge.exe 行数（主进程 + 多个 renderer/gpu 子进程）
+# 统计 msedge.exe 行数
 msedge_count = sum(1 for l in tasklist.stdout.splitlines() if l.strip().startswith("msedge.exe"))
+# 解析窗口标题
 first_title = ""
 lines = [l for l in tasklist.stdout.splitlines() if l.strip()]
 for i, l in enumerate(lines):
@@ -95,42 +103,52 @@ for i, l in enumerate(lines):
             first_title = lines[i + 1].strip()
         break
 
-# Edge 多进程在跑就视作"成功"
-alive = msedge_count >= 2  # 至少要看到 msedge.exe + 1 个子进程
+# 真正判定 Edge 浏览器 UI 在运行：进程数 >= 2 (主进程 + 1 个子进程)
+ui_keywords = ("百度", "Baidu", "新标签页", "New tab", "Edge", "Microsoft\u00a0Edge")
+title_match = any(k in first_title for k in ui_keywords) if first_title else False
+alive = msedge_count >= 2 and (title_match or first_title == "")
+
 print(f"[n3] msedge 进程数={msedge_count}, alive={alive}, 首窗口标题='{first_title}'")
-# 把 n2 的 pid 透传给下游节点（n4 用来 taskkill 所有 msedge.exe 兜底）
 result = {
     "edge_pid": pid,
     "edge_alive": alive,
     "msedge_count": msedge_count,
     "first_window_title": first_title,
+    "title_match": title_match,
     "checked_at": time.time(),
 }
 '''.strip()
 
 CODE_CLOSE = r'''
 import subprocess
-import os
 
 # n3 透传的 pid
 n3_info = ((inputs or {}).get("n3") or {}).get("result", {}) or {}
 pid = n3_info.get("edge_pid")
-if not pid:
-    raise RuntimeError("n3 没拿到 edge_pid，链路断了")
 
-# 关 Edge：主进程可能已退出，所以用 taskkill /IM msedge.exe 关掉所有 msedge 进程
-# encoding="utf-8" 避免 GBK 报错
-kill = subprocess.run(
-    ["taskkill", "/F", "/IM", "msedge.exe"],
-    capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace",
-)
-print(f"[n4] taskkill exit={kill.returncode}, stdout={kill.stdout.strip()[:200]}")
-result = {
-    "closed_pid": pid,
-    "kill_exit_code": kill.returncode,
-    "kill_stdout": kill.stdout.strip()[:300],
-    "kill_stderr": kill.stderr.strip()[:300],
-}
+# 接收 __user_inputs__.close 决定是否关 Edge（默认 false —— 让用户真看到 Edge 窗口）
+should_close = bool(((inputs or {}).get("__user_inputs__") or {}).get("close", False))
+
+if not should_close:
+    print(f"[n4] 跳过关闭 (inputs.close=false)。Edge 浏览器保持打开 pid={pid}")
+    result = {
+        "closed_pid": None,
+        "skipped": True,
+        "reason": "inputs.close=false, 保留 Edge 窗口给用户查看",
+        "edge_pid": pid,
+    }
+else:
+    kill = subprocess.run(
+        ["taskkill", "/F", "/IM", "msedge.exe"],
+        capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace",
+    )
+    print(f"[n4] taskkill exit={kill.returncode}")
+    result = {
+        "closed_pid": pid,
+        "kill_exit_code": kill.returncode,
+        "kill_stdout": kill.stdout.strip()[:300],
+        "kill_stderr": kill.stderr.strip()[:300],
+    }
 '''.strip()
 
 GRAPH = {
@@ -143,7 +161,7 @@ GRAPH = {
             {"id": "n3", "type": "skill", "config": {"code": CODE_SCREENSHOT, "timeout_sec": 25}},
             {"id": "n4", "type": "skill", "config": {"code": CODE_CLOSE, "timeout_sec": 15}},
             {"id": "n5", "type": "end", "config": {
-                "message": "✅ Edge 自动化完成 | 启动 pid={{n2.outputs.result.pid}} | 窗口存活={{n3.outputs.result.edge_alive}} | 关闭 rc={{n4.outputs.result.kill_exit_code}}"
+                "message": "✅ Edge 启动 | pid={{n2.outputs.result.pid}} | msedge 进程数={{n3.outputs.result.msedge_count}} | 窗口标题='{{n3.outputs.result.first_window_title}}' | 关闭状态={{n4.outputs.result.skipped}}"
             }},
         ],
         "edges": [

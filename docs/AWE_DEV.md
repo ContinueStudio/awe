@@ -5,7 +5,33 @@
 
 ---
 
-## 1. 当前进度 (v0.2.5 - 2026-07-04 22:15)
+## 1. 当前进度 (v0.2.6 - 2026-07-04 22:35)
+
+### 1.0 今日进展 (2026-07-04 22:35)
+
+**【本轮】修 Edge 闪退 + 沙盒增加 user_inputs 注入 + 关闭节点变可选**
+- 🐛 **bug 复盘**：用户报告"运行成功但实际没运行，窗口闪一下就消失"。排查发现 3 个连环问题：
+  1. `subprocess.Popen` 没加 `creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`，Edge 跟沙盒 executor 线程 console handle 绑定，节点 return 时子进程被回收
+  2. n3 验证节点只等 3s 太短，Edge 首次启动到 fork 出子进程需要 5+s
+  3. n4 默认强制 `taskkill /IM msedge.exe`，Edge 跑完 5s 内就被关掉，窗口根本来不及显示
+- ✅ **修复**：
+  1. n2 启动加 `creationflags=DETACHED_PROCESS(0x08) | CREATE_NEW_PROCESS_GROUP(0x200)`，Edge 完全脱离父进程
+  2. n3 等待 5s + tasklist `/V` 看窗口标题，title 匹配百度/Baidu/Edge 关键词
+  3. n4 变可选：从 `inputs.__user_inputs__.close` 读取，默认 `false` **不关 Edge**，让用户真看到窗口
+- ✅ **builder.py 增强**：Skill 节点沙盒 inputs 注入 `__user_inputs__` 键，值是 `state.inputs`（run 入口用户传的），让节点能拿到 `close: true` 这类顶层开关
+- ✅ **实测**：Edge 真的在桌面打开了，当前 50 个 msedge 进程在跑，主窗口标题 "更新日志 | Tampermonkey 和另外 1 个页面 - 个人 - Microsoft Edge"
+- 🐛 **避坑**：
+  - **Windows `subprocess.Popen` 默认会继承父进程 console handle**，子进程在父进程 return 时会被 Windows 强制回收。GUI 子进程必须加 `DETACHED_PROCESS` 标志
+  - **Edge 多进程模型**：主进程 1.5s 后就 fork 出 renderer/gpu 后退出，光看主进程 PID 拿不到存活信号；要用 `tasklist /FI "IMAGENAME eq msedge.exe"` 统计进程数
+  - **skill 节点看不到 `state.inputs`**：沙盒里 `inputs` 只有 `state["outputs"]` 里的上游节点输出，得在 builder 里把 `state["inputs"]` 单独塞进去（用 `__user_inputs__` 命名空间隔离）
+  - **Edit 工具的 silent fail**：之前几次 Edit 看似成功但实际没改文件（"old_string not found"），要读最新文件再 Edit，而不是相信 Edit 工具的"成功"返回
+- 📋 **用户操作路径**：
+  1. 主界面看到 "🌐 Edge 浏览器自动化" 卡片
+  2. 点"运行" → Edge 真的在桌面打开百度页面
+  3. 卡片"查看日志"→ Drawer 看运行历史（pid / 进程数 / 窗口标题 / skipped）
+  4. 想关掉 Edge？点 Editor 进画布 → 给 n4 传 inputs：`{"close": true}`（或者在节点配置加"运行后关闭"开关）
+
+### 1.0 今日进展 (2026-07-04 22:15)
 
 ### 1.0 今日进展 (2026-07-04 22:15)
 
