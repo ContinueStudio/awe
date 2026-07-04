@@ -1,6 +1,9 @@
 /**
  * 单个节点的渲染（带端口）
+ * - 通过 onMeasured 回调把真实内容高度透出给父组件
+ * - 父组件用 ResizeObserver + onMeasured 联动，准确设置 foreignObject.height
  */
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { Brain, Database, Globe, UserCheck, Webhook, Flag, GitBranch, Braces, Wand2, Table2, PlugZap, Code2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CanvasNode, NodeDefinition } from '@/lib/types';
@@ -18,22 +21,50 @@ const COLOR_BAR: Record<string, string> = {
   slate: 'bg-slate-500',
 };
 
-export function NodeRender({
-  node,
-  def,
-  onStartEdge,
-  onCompleteEdge,
-}: {
+export interface NodeRenderHandle {
+  measure: () => void;
+}
+
+interface Props {
   node: CanvasNode;
   def: NodeDefinition;
   onStartEdge: (e: React.MouseEvent) => void;
   onCompleteEdge: (e: React.MouseEvent) => void;
-}) {
+  onMeasured?: (h: number) => void;
+}
+
+export const NodeRender = forwardRef<NodeRenderHandle, Props>(function NodeRender({
+  node,
+  def,
+  onStartEdge,
+  onCompleteEdge,
+  onMeasured,
+}, ref) {
   const Icon = ICONS[def.icon] || Code2;
   const bar = COLOR_BAR[def.color] || COLOR_BAR.slate;
+  const innerRef = useRef<HTMLDivElement | null>(null);
+
+  const measure = () => {
+    if (innerRef.current && onMeasured) {
+      const h = innerRef.current.getBoundingClientRect().height;
+      if (h > 0) onMeasured(Math.ceil(h));
+    }
+  };
+
+  useImperativeHandle(ref, () => ({ measure }), []);
+
+  useEffect(() => {
+    if (!innerRef.current || !onMeasured) return;
+    // 首次 measure + ResizeObserver
+    measure();
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(innerRef.current);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node.id, def.inputs.length, def.outputs.length]);
 
   return (
-    <div className="rounded-xl overflow-hidden">
+    <div ref={innerRef} className="rounded-xl overflow-hidden" data-node-id={node.id} data-testid="node-render">
       <div className={cn('h-1 w-full', bar)} />
       <div className="px-3 py-2.5 flex items-center gap-2">
         <span className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center shrink-0">
@@ -71,4 +102,4 @@ export function NodeRender({
       </div>
     </div>
   );
-}
+});

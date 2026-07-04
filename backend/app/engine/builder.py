@@ -76,7 +76,15 @@ class WorkflowBuilder:
         elif ntype == "mcp":
             outputs = {"result": {"stub": True, "tool": cfg.get("tool"), "args": cfg.get("args")}}
         elif ntype == "skill":
-            outputs = await _run_skill(cfg)
+            # 把当前节点所有上游 outputs 合并，作为 Skill 沙盒的 inputs
+            # edges 通过 compile() 缓存在 self._edges_cache 上（闭包共享）
+            upstream: Dict[str, Any] = {}
+            for e in getattr(self, "_edges_cache", []):
+                if e.get("target") == nid:
+                    src_out = state.get("outputs", {}).get(e["source"])
+                    if src_out is not None:
+                        upstream[e["source"]] = src_out
+            outputs = await _run_skill(cfg, upstream)
         elif ntype == "human":
             # 人类审批：挂起；前端需要调用 /runs/{id}/resume
             state["pending_human"] = True
@@ -99,6 +107,8 @@ class WorkflowBuilder:
         """
         nodes: List[Dict[str, Any]] = self.graph["nodes"]
         edges: List[Dict[str, Any]] = self.graph["edges"]
+        # 把 edges 缓存在 self 上，给 _run_node 用（避免改函数签名影响 LangGraph 节点包装）
+        self._edges_cache = edges
 
         order = _topo_order(nodes, edges)
         start = order[0] if order else "__start__"
@@ -351,13 +361,20 @@ async def _run_http(cfg: Dict[str, Any]) -> Dict[str, Any]:
         return {"response": {"error": str(exc)}}
 
 
-async def _run_skill(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    """受限 Python 沙盒：基于 RestrictedPython + 超时阻断。"""
+async def _run_skill(cfg: Dict[str, Any], upstream: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """受限 Python 沙盒：基于 RestrictedPython + 超时阻断。
+
+    `upstream` 是该 Skill 节点的所有上游节点的 outputs 合并 dict（key=node_id），
+    作为沙盒里的 `inputs` 变量暴露给用户脚本。例如上游是 n1=webhook / n2=skill，
+    沙盒里就能 `inputs = {"n1": {...}, "n2": {...}}`。
+    """
     from .sandbox import run_user_code
 
     code = cfg.get("code", "")
     timeout = int(cfg.get("timeout_sec") or 30)
-    return await run_user_code(code, timeout=timeout)
+    # 把 upstream 包成带 inputs 键的 dict，跟 _run_skill 调用点对齐
+    sandbox_inputs = {"inputs": upstream or {}}
+    return await run_user_code(code, timeout=timeout, extra_globals=sandbox_inputs)
 
 
 def _topo_order(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]) -> List[str]:

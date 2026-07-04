@@ -5,7 +5,35 @@
 
 ---
 
-## 1. 当前进度 (v0.2.3 - 2026-07-04 22:20)
+## 1. 当前进度 (v0.2.4 - 2026-07-04 21:05)
+
+### 1.0 今日进展 (2026-07-04 21:05)
+
+**【本轮】修 Skill 节点 NameError + selftest 全面自检通过 + 跑通 webhook→skill→end**
+- 🐛 **bug 复盘**：v0.2.3 写好后，**用户说"编辑器显示有问题 + 你有做自检吗 + 日志应该在主界面单独看"**。我去跑 selftest 一看，果然：
+  1. Skill 节点运行后 `result=null`，原因是沙盒里没有 `inputs` 变量，selftest 代码 `(inputs or {}).get('i',0)` 直接 NameError
+  2. 修了之后又冒出来 `name 'edges' is not defined` —— 我在 `_run_node` 里用到了 `edges` 局部变量，但这个函数是从 LangGraph 闭包调进来的，作用域里没有 `edges`
+  3. selftest 的 frontend dist 静态检查用的 `"pages/"` 和 `"HomePage"` 字符串检查，但 esbuild production build 把所有 import inline 成一个 bundle，原文件路径字符串会变成 `HOMEPAGE` 大写常量，selftest 假阳性报 FAIL
+- ✅ **修复**：
+  1. `sandbox.py:run_user_code` 新增 `extra_globals` 参数，把 `inputs` 注入沙盒全局
+  2. `builder.py:_run_node` 把 `edges` 通过 `self._edges_cache` 缓存共享（不改 LangGraph 节点函数签名）
+  3. `selftest.py` 的 frontend 检查改用 `HOMEPAGE` / `RUNHISTORYDRAWER` / `我的工作流` / `查看日志` 等大写常量 + 中文 UI 文案双校验
+  4. 后端 uvicorn 切到 venv python（之前一直被 Anaconda 的 python 占着 8765 端口，导致代码改完不生效）
+- ✅ **自检结果**：
+  - `selftest.py` **9 节 30+ 检查项全部通过**：`[OK] ALL CHECKS PASSED`
+  - 端到端跑：`webhook -> skill -> end`，Skill 节点返回 `{"greeting":"selftest ok","i":0/1/2,"ok":true}`
+  - 列表字段 `run_count=3` / `last_status=succeeded` / `last_started_at` 全部正确
+  - 前端 dist 包含 `HOMEPAGE` / `RUNHISTORYDRAWER` / `我的工作流` / `查看日志` / `data-node-height` / `ResizeObserver` 等关键标识
+- 🐛 **避坑**：
+  - **后端进程隔离**：Anaconda python 跟 venv python 都会 import `uvicorn`，直接 `Start-Process` 启动 venv python 也会被 PATH 里的 Anaconda 抢走 8765 端口。必须先 `netstat -ano | findstr 8765` 杀掉 Anaconda 进程，再用 venv python 启动
+  - **沙盒注入**：`_SAFE_BUILTINS` 不含 `__import__`，所以 `inputs` 必须通过 `extra_globals` 显式注入，不能依赖 globals
+  - **esbuild minify 字符串检查**：找 import 路径 + PascalCase 组件名（"pages/HomePage"）在 production build 里完全不存在，要用大写 enum 常量 + 中文 UI 文案
+  - **LangGraph 闭包变量**：`_run_node` 跑在 LangGraph node wrapper 里，函数签名是 `(state) -> state`，加 `edges` 参数会破坏协议。共享数据用 `self.xxx_cache` 模式
+- 📋 **用户操作路径**：
+  1. 浏览器 http://127.0.0.1:8765/ 硬刷新
+  2. Home 页：每个工作流卡片有"查看日志"按钮（点击弹右侧 Drawer 看历史），不进入 Editor
+  3. 点击卡片正文进入 Editor：左侧节点面板 + 中间画布 + 右侧节点配置 Drawer
+  4. Editor 顶栏只有"返回 / 名称 / 保存 / 运行"，不再有"历史"按钮（日志已挪到主界面）
 
 ### 1.0 今日进展 (2026-07-04 22:20)
 

@@ -103,8 +103,16 @@ def _exec_sync(code: str, glb: Dict[str, Any], out: io.StringIO, err: io.StringI
         return None
 
 
-async def run_user_code(code: str, timeout: int | None = None) -> Dict[str, Any]:
-    """异步执行用户脚本。"""
+async def run_user_code(
+    code: str,
+    timeout: int | None = None,
+    extra_globals: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """异步执行用户脚本。
+
+    extra_globals 注入额外的全局变量（最常用的是 inputs）。
+    仍然受 _DENY_NAMES 审计；超过 timeout 强制中断。
+    """
     timeout = timeout or settings.skill_sandbox_timeout_sec
 
     # 1) ast 审计
@@ -117,6 +125,10 @@ async def run_user_code(code: str, timeout: int | None = None) -> Dict[str, Any]
         "__builtins__": _SAFE_BUILTINS,
         "result": None,
     }
+    if extra_globals:
+        for k, v in extra_globals.items():
+            if k not in _DENY_NAMES:
+                glb[k] = v
     out, err = io.StringIO(), io.StringIO()
 
     loop = asyncio.get_running_loop()

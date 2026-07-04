@@ -32,6 +32,7 @@ data/awe.db-shm
 data/awe.db-wal
 data/logs/
 data/chroma/
+data/*.bak-*
 *.log
 backend/*.out
 backend/*.err

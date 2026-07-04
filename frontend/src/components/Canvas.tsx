@@ -217,21 +217,45 @@ export function Canvas({
   }, [workflowId]);
 
   // ---- 渲染辅助 ----
-  // 节点宽度固定 220；高度按内容自适应（标题双行 + ports 行高 20px + 边距）
-  // 经验值：色条 4 + header 56(双行 13/10.5px) + 端口区 count*20 + 内边距 8 = 68 + count*20
+  // 节点宽度固定 220；高度由 NodeRender 内部 ResizeObserver 测出（onMeasured 回调）
+  // 端口位置按真实 header + 端口区 padding 计算（避免算少裁掉）
   const PORT_R = 5;
   const NODE_W = 220;
-  const HEADER_H = 56; // 4 (色条) + 10 (py-2.5 上) + 32 (双行 13+10.5 + leading) + 10 (py-2.5 下) ≈ 56
-  const PORT_GAP = 20; // NodeRender 内 port 行高 h-5
-  const PORT_AREA_PAD = 8; // px-2 顶 padding + pb-2 底 padding 之和
+  const FALLBACK_NODE_H = 120;
+  const PORT_ROW_H = 20;
+  // 端口区：px-2 上 + space-y-1 + pb-2 下
+  const PORT_AREA_TOP_PAD = 8;
+  const PORT_AREA_BOTTOM_PAD = 8;
+  const PORT_GAP_BETWEEN = 4; // space-y-1
+  // header 段：h-1 (4px) + py-2.5 (20px) + max(icon 24, text 25) ≈ 49
+  const HEADER_H = 49;
 
-  // 节点外壳高度 = header + 端口区
-  // 注意：用 inputs + outputs 总数（不是 max），因为 inputs 和 outputs 都各自占行
-  const nodeHeight = (totalPorts: number) =>
-    Math.max(120, HEADER_H + PORT_AREA_PAD + totalPorts * PORT_GAP + 8);
+  // 单节点高度 = max(实测高度, FALLBACK) —— 渲染时直接用
+  const heightOf = (id: string, fallbackPorts: number) => {
+    const m = nodeHeights[id];
+    if (m && m > 0) return m;
+    return Math.max(FALLBACK_NODE_H, HEADER_H + PORT_AREA_TOP_PAD + PORT_AREA_BOTTOM_PAD + fallbackPorts * (PORT_ROW_H + PORT_GAP_BETWEEN));
+  };
 
-  // 端口圆点中心 y：header 底部 + 端口区 padding-top + i 行 + 半行高
-  const portDotY = (nodeY: number, i: number) => nodeY + HEADER_H + 8 + i * PORT_GAP + PORT_GAP / 2;
+  // 端口区起始 y（header 之后）
+  const portAreaStartY = HEADER_H + PORT_AREA_TOP_PAD;
+  // 端口圆点中心 y：i 行端口圆点
+  const portDotY = (nodeY: number, i: number) => nodeY + portAreaStartY + i * (PORT_ROW_H + PORT_GAP_BETWEEN) + PORT_ROW_H / 2;
+
+  // 节点实测高度缓存：key=nodeId, value=真实 DOM 高度
+  const [nodeHeights, setNodeHeights] = useState<Record<string, number>>({});
+  const measureNode = useCallback((id: string, h: number) => {
+    setNodeHeights((prev) => {
+      // 节流：相同高度不更新
+      if (prev[id] === h) return prev;
+      return { ...prev, [id]: h };
+    });
+  }, []);
+
+  // 工作流变化时清空
+  useEffect(() => {
+    setNodeHeights({});
+  }, [workflowId]);
 
   const portPositions = (id: string) => {
     const n = graph.nodes.find((x) => x.id === id);
@@ -326,9 +350,11 @@ export function Canvas({
               const def = nodeDefs[n.type];
               if (!def) return null;
               const pos = getNodePos(n.id);
+              const totalPorts = def.inputs.length + def.outputs.length;
+              const h = heightOf(n.id, totalPorts);
               return (
-                <g key={n.id} transform={`translate(${pos.x},${pos.y})`}>
-                  <foreignObject width={NODE_W} height={nodeHeight(def.inputs.length + def.outputs.length)}>
+                <g key={n.id} transform={`translate(${pos.x},${pos.y})`} data-node-pos={n.id}>
+                  <foreignObject width={NODE_W} height={h}>
                     <div
                       onMouseDown={(e) => onNodeMouseDown(e, n.id)}
                       onClick={(e) => { e.stopPropagation(); setSelectedId(n.id); }}
@@ -336,12 +362,15 @@ export function Canvas({
                         'rounded-xl border bg-white shadow-sm cursor-grab active:cursor-grabbing transition-shadow',
                         selectedId === n.id ? 'border-brand-500 ring-2 ring-brand-200 shadow-md' : 'border-slate-200 hover:shadow-md',
                       )}
+                      style={{ height: h }}
+                      data-node-height={h}
                     >
                       <NodeRender
                         node={n}
                         def={def}
                         onStartEdge={(e) => startEdge(e, n.id)}
                         onCompleteEdge={(e) => completeEdge(e, n.id)}
+                        onMeasured={(measured) => measureNode(n.id, measured)}
                       />
                     </div>
                   </foreignObject>

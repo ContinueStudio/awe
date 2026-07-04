@@ -3,13 +3,15 @@
  * - 顶栏：AWE Logo + 后端状态 + 新建工作流按钮
  * - 主体：工作流卡片网格（名称 / 描述 / 状态点 / 运行数 / 最后运行时间）
  * - 卡片菜单：编辑 / 重命名 / 复制 / 导出 / 删除
+ * - 卡片底部"日志"按钮 → 右侧 Drawer 显示该工作流的运行历史（不需要进 Editor）
  */
 import { useEffect, useRef, useState } from 'react';
 import {
-  Cpu, Github, Plus, Search, MoreVertical, Pencil, Copy, Trash2, Download, Play, Loader2, FilePlus2, FolderOpen,
+  Cpu, Github, Plus, Search, MoreVertical, Pencil, Copy, Trash2, Download, Play, Loader2, FilePlus2, FolderOpen, History,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { RunHistoryDrawer } from '@/components/RunHistoryDrawer';
 import type { Workflow } from '@/lib/types';
 
 type HealthInfo = { ok: boolean; version: string };
@@ -43,6 +45,8 @@ export function HomePage({
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [logWf, setLogWf] = useState<Workflow | null>(null);
+  const [runningIds, setRunningIds] = useState<Record<string, boolean>>({});
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   // 启动拉健康
@@ -139,6 +143,28 @@ export function HomePage({
     setWorkflows(d.workflows as any);
   };
 
+  // 从主界面直接运行（不跳到 Editor）
+  const runFromHome = async (id: string) => {
+    if (runningIds[id]) return;
+    setRunningIds((m) => ({ ...m, [id]: true }));
+    try {
+      await api.runWorkflow(id, {});
+      // 跑完立即刷新列表拿到最新 last_status
+      const d = await api.listWorkflows();
+      setWorkflows(d.workflows as any);
+    } catch (e) {
+      console.error('home run failed', e);
+      alert('运行失败：' + (e as Error).message);
+    } finally {
+      setRunningIds((m) => ({ ...m, [id]: false }));
+    }
+  };
+
+  // 把卡片列表转成 RunHistoryDrawer 期望的 current（带 graph 字段）
+  const currentLogWf: Workflow | null = logWf
+    ? { ...logWf, graph: logWf.graph || (workflows.find((w) => w.id === logWf.id)?.graph) || { nodes: [], edges: [] } }
+    : null;
+
   const filtered = workflows.filter((w) => w.name.toLowerCase().includes(query.toLowerCase()));
 
   return (
@@ -230,17 +256,28 @@ export function HomePage({
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map((wf) => (
-                <WfCard
-                  key={wf.id}
-                  wf={wf}
-                  onOpen={() => onOpen(wf)}
-                  onMenu={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    setMenu({ id: wf.id, x: e.clientX, y: e.clientY });
-                  }}
-                />
-              ))}
+            <WfCard
+              key={wf.id}
+              wf={wf}
+              onOpen={() => onOpen(wf)}
+              onShowLogs={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                setLogWf(wf);
+              }}
+              onRun={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                runFromHome(wf.id);
+              }}
+              isRunning={!!runningIds[wf.id]}
+              onMenu={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                setMenu({ id: wf.id, x: e.clientX, y: e.clientY });
+              }}
+            />
+          ))}
             </div>
           )}
         </div>
@@ -287,15 +324,27 @@ export function HomePage({
           </div>
         </div>
       )}
+
+      {/* 全局日志 Drawer：卡片"查看日志"按钮触发，Home 页不离开就能看运行历史 */}
+      <RunHistoryDrawer
+        current={currentLogWf}
+        open={!!logWf}
+        onClose={() => setLogWf(null)}
+        onRun={() => logWf && runFromHome(logWf.id)}
+        isRunning={logWf ? !!runningIds[logWf.id] : false}
+      />
     </div>
   );
 }
 
 function WfCard({
-  wf, onOpen, onMenu,
+  wf, onOpen, onShowLogs, onRun, isRunning, onMenu,
 }: {
   wf: Workflow;
   onOpen: () => void;
+  onShowLogs: (e: React.MouseEvent) => void;
+  onRun: (e: React.MouseEvent) => void;
+  isRunning: boolean;
   onMenu: (e: React.MouseEvent) => void;
 }) {
   const status = wf.last_status;
@@ -351,6 +400,30 @@ function WfCard({
             {lastTime ? fmtTime(lastTime) : '未运行'}
           </div>
         </div>
+        {/* 操作行：日志 / 运行 */}
+        <div className="mt-2.5 flex items-center gap-1.5 pt-2.5 border-t border-slate-200/60">
+          <button
+            onClick={onShowLogs}
+            className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+            title="查看运行历史"
+          >
+            <History className="w-3 h-3" />
+            查看日志
+          </button>
+          <button
+            onClick={onRun}
+            disabled={isRunning}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors",
+              "bg-gradient-to-r from-brand-500 to-violet-500 text-white hover:from-brand-600 hover:to-violet-600",
+              "disabled:opacity-50",
+            )}
+            title="直接运行此工作流"
+          >
+            {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+            {isRunning ? '运行中' : '运行'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -370,3 +443,5 @@ function MenuItem({ icon: Icon, label, onClick, danger }: { icon: any; label: st
     </button>
   );
 }
+
+console.log('??SELFTEST_HOMEPAGE_MARKER??');

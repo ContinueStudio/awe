@@ -4,18 +4,18 @@
  * N8N / Dify 范式：
  * - 默认显示所有工作流卡片
  * - 点击卡片进入编辑页
- * - 运行历史 / 节点配置 都是右侧 Drawer
+ * - 运行历史：在 Home 页右侧 Drawer 查看（不依赖进入 Editor）
+ * - 节点配置：Editor 右侧 Drawer
  */
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Cpu, Save, Play, Loader2, History, X } from 'lucide-react';
+import { ArrowLeft, Cpu, Save, Play, Loader2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { HomePage } from './pages/HomePage';
 import { NodePalette } from './components/NodePalette';
 import { Canvas } from './components/Canvas';
-import { RunHistoryDrawer } from './components/RunHistoryDrawer';
 import { ConfigPanel } from './components/ConfigPanel';
-import type { NodeDefinition, Workflow, WorkflowGraph } from './lib/types';
+import type { NodeDefinition, Workflow, WorkflowGraph } from '@/lib/types';
 
 const EMPTY_GRAPH: WorkflowGraph = { nodes: [], edges: [] };
 
@@ -30,12 +30,9 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Drawers
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [configOpen, setConfigOpen] = useState(false);
-
   // 当前选中节点
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [configOpen, setConfigOpen] = useState(false);
 
   // ---- 启动 ----
   useEffect(() => {
@@ -45,7 +42,6 @@ export default function App() {
 
   // ---- 路由 ----
   const openWorkflow = async (wf: Workflow) => {
-    // 重新拉最新 graph（如果旧卡片里没有 graph）
     let graphData = wf.graph;
     if (!graphData) {
       try {
@@ -58,14 +54,12 @@ export default function App() {
     setCurrentName(wf.name);
     setSelectedNodeId(null);
     setConfigOpen(false);
-    setHistoryOpen(false);
   };
 
   const backToHome = () => {
     setView({ kind: 'home' });
     setSelectedNodeId(null);
     setConfigOpen(false);
-    setHistoryOpen(false);
   };
 
   // ---- 编辑 ----
@@ -141,13 +135,11 @@ export default function App() {
 
   const handleRun = useCallback(async () => {
     if (view.kind !== 'editor') return;
-    // 没保存过就先保存
     if (!view.wf.id) {
       await handleSave();
     }
     const targetWfId = view.wf.id;
     setIsRunning(true);
-    setHistoryOpen(true);
     try {
       await api.runWorkflow(targetWfId, {});
     } catch (e) {
@@ -158,7 +150,7 @@ export default function App() {
     }
   }, [view, handleSave]);
 
-  // ---- 当前 wf 用于历史 / 配置 ----
+  // ---- 当前 wf 用于配置 ----
   const currentWf: Workflow | null = view.kind === 'editor'
     ? { ...view.wf, name: currentName, graph }
     : null;
@@ -198,14 +190,9 @@ export default function App() {
           />
         </div>
         <div className="ml-auto flex items-center gap-1.5">
-          <button
-            onClick={() => setHistoryOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-100"
-            title="运行历史"
-          >
-            <History className="w-3.5 h-3.5" />
-            <span>历史</span>
-          </button>
+          <span className="text-[11px] text-slate-400 mr-1" title="运行历史请到主界面查看">
+            日志在主界面
+          </span>
           <button
             onClick={handleSave}
             disabled={isSaving}
@@ -252,7 +239,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Drawer: 节点配置 */}
+      {/* Drawer: 节点配置（Editor 内） */}
       {selectedNode && selectedDef && (
         <NodeConfigDrawer
           open={configOpen}
@@ -264,15 +251,6 @@ export default function App() {
           onChange={updateNodeConfig}
         />
       )}
-
-      {/* Drawer: 运行历史 */}
-      <RunHistoryDrawer
-        current={currentWf}
-        open={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-        onRun={handleRun}
-        isRunning={isRunning}
-      />
     </div>
   );
 }
@@ -290,7 +268,6 @@ function NodeConfigDrawer({
   onDelete: () => void;
   onChange: (cfg: any) => void;
 }) {
-  // 借 ConfigPanel 复用：传入简化版 def（让 ConfigPanel 渲染通用 schema 表单）
   const fakeDef: NodeDefinition = {
     type: nodeType,
     name: defName,
