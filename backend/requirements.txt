@@ -9,6 +9,7 @@ langchain-core>=0.3
 litellm>=1.40
 chromadb>=0.4
 pydantic-settings>=2.1
+mcp>=1.0  # MCP Server (Mode B) 
 
 # 桌面端打包
 pywebview>=5.0
