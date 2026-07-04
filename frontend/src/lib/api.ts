@@ -1,7 +1,7 @@
 /**
  * 统一后端 API 客户端
  */
-import type { NodeDefinition, RunResult, Workflow, WorkflowGraph } from './types';
+import type { NodeDefinition, RunRecord, RunResult, Workflow, WorkflowGraph } from './types';
 
 const BASE = '/api';
 
@@ -42,8 +42,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ inputs }),
     }),
-  listRuns: (workflowId?: string) =>
-    http<{ runs: Array<{ id: string; workflow_id: string; status: string; started_at: number; finished_at: number | null }> }>(
-      workflowId ? `/runs?workflow_id=${workflowId}` : '/runs',
+  listRuns: (workflowId?: string, limit = 50) =>
+    http<{ runs: RunRecord[] }>(
+      `/runs?workflow_id=${workflowId ?? ''}&limit=${limit}`,
     ),
+  getRun: (runId: string) => http<RunRecord>(`/runs/${runId}`),
 };

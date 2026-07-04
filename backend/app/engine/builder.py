@@ -1,11 +1,11 @@
 """LangGraph StateGraph 构建器。
-
 把前端传入的图谱 JSON 编译为可执行的 StateGraph。
 每个 AWE 节点对应一个 LangGraph 节点函数 (执行单元)。
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 import traceback
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple

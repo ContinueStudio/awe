@@ -166,14 +166,27 @@ class Database:
         }
 
     def list_workflows(self) -> List[Dict[str, Any]]:
+        """列出工作流，每个附 run_count / last_status / last_started_at。"""
         with _LOCK, self._conn() as conn:
             rows = conn.execute(
-                "SELECT id,name,description,created_at,updated_at FROM workflows ORDER BY updated_at DESC"
+                """
+                SELECT w.id, w.name, w.description, w.created_at, w.updated_at,
+                       (SELECT COUNT(*) FROM runs r WHERE r.workflow_id = w.id) AS run_count,
+                       (SELECT status    FROM runs r WHERE r.workflow_id = w.id ORDER BY started_at DESC LIMIT 1) AS last_status,
+                       (SELECT started_at FROM runs r WHERE r.workflow_id = w.id ORDER BY started_at DESC LIMIT 1) AS last_started_at
+                FROM workflows w
+                ORDER BY w.updated_at DESC
+                """
             ).fetchall()
         return [dict(r) for r in rows]
 
     def delete_workflow(self, wid: str) -> bool:
+        """删除工作流，并级联清理其 runs / checkpoints / schedules。"""
         with _LOCK, self._conn() as conn:
+            # 先清掉关联数据，避免悬空记录
+            conn.execute("DELETE FROM checkpoints WHERE run_id IN (SELECT id FROM runs WHERE workflow_id=?)", (wid,))
+            conn.execute("DELETE FROM runs WHERE workflow_id=?", (wid,))
+            conn.execute("DELETE FROM schedules WHERE workflow_id=?", (wid,))
             cur = conn.execute("DELETE FROM workflows WHERE id=?", (wid,))
         return cur.rowcount > 0
 

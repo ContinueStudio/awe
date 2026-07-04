@@ -9,10 +9,10 @@
  * 后续可在不改 API 的前提下替换为 flowgram 的 FreeLayoutEditor。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Trash2, X, Play, Save, FilePlus2, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { Trash2, Save, FilePlus2, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { CanvasEdge, CanvasNode, NodeDefinition, RunResult, WorkflowGraph } from '@/lib/types';
+import type { CanvasEdge, CanvasNode, NodeDefinition, WorkflowGraph } from '@/lib/types';
 import { NodeRender } from './NodeRender';
 import { ConfigPanel } from './ConfigPanel';
 
@@ -24,6 +24,7 @@ interface Props {
   onChange: (g: WorkflowGraph) => void;
   onWorkflowId: (id: string | null) => void;
   onWorkflowName: (name: string) => void;
+  onSave?: (id: string) => void;
 }
 
 interface ViewState {
@@ -42,6 +43,7 @@ export function Canvas({
   onChange,
   onWorkflowId,
   onWorkflowName,
+  onSave,
 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [view, setView] = useState<ViewState>(DEFAULT_VIEW);
@@ -50,7 +52,7 @@ export function Canvas({
   const [dragNode, setDragNode] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const [panning, setPanning] = useState<{ x: number; y: number } | null>(null);
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<RunResult | null>(null);
+  // 旧字段 result 已废弃，运行由 App.tsx 协调
 
   const nodeDefs = useMemo(() => Object.fromEntries(nodes.map((n) => [n.type, n])), [nodes]);
 
@@ -202,25 +204,11 @@ export function Canvas({
       edges: graph.edges,
     });
     onWorkflowId(res.id);
+    onSave?.(res.id);
   };
 
-  const run = async () => {
-    if (!workflowId) {
-      await save();
-    }
-    if (!workflowId && !localStorage.getItem('awe:last_id')) return;
-    const id = workflowId || (localStorage.getItem('awe:last_id') as string);
-    setRunning(true);
-    setResult(null);
-    try {
-      const r = await api.runWorkflow(id, {});
-      setResult(r);
-    } catch (e) {
-      setResult({ run_id: '', status: 'failed', outputs: {}, logs: [], error: String(e) } as RunResult);
-    } finally {
-      setRunning(false);
-    }
-  };
+  // 运行已由 App.tsx 的 RunHistoryPanel 处理
+  // 旧的 run() 函数 + setRunning/setResult 已删除
 
   // 自动记忆新创建的工作流 id
   useEffect(() => {
@@ -286,11 +274,8 @@ export function Canvas({
             placeholder="工作流名称"
           />
           <span className="text-slate-300">|</span>
-          <button onClick={save} className="awe-btn-secondary" title="保存">
+          <button onClick={save} className="awe-btn-secondary" title="保存 (Ctrl+S)">
             <Save className="w-3.5 h-3.5" /> 保存
-          </button>
-          <button onClick={run} disabled={running} className="awe-btn-primary" title="运行">
-            <Play className="w-3.5 h-3.5" /> {running ? '运行中…' : '运行'}
           </button>
         </div>
 
@@ -307,36 +292,7 @@ export function Canvas({
           </button>
         </div>
 
-        {/* 状态/结果侧栏 */}
-        {result && (
-          <div className="absolute top-4 right-4 z-20 w-96 max-h-[70vh] glass rounded-xl shadow-md flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/60">
-              <div className="text-sm font-semibold text-slate-800">
-                运行结果 · <span className={cn(result.status === 'succeeded' ? 'text-emerald-600' : 'text-rose-600')}>{result.status}</span>
-              </div>
-              <button onClick={() => setResult(null)} className="text-slate-400 hover:text-slate-700">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-3 overflow-y-auto text-xs space-y-2">
-              {result.error && (
-                <div className="p-2 rounded-md bg-rose-50 text-rose-700 border border-rose-200">{result.error}</div>
-              )}
-              <div>
-                <div className="font-medium text-slate-600 mb-1">Outputs</div>
-                <pre className="bg-slate-50 border border-slate-200 rounded-md p-2 overflow-x-auto whitespace-pre-wrap break-all">
-{JSON.stringify(result.outputs, null, 2)}
-                </pre>
-              </div>
-              <div>
-                <div className="font-medium text-slate-600 mb-1">Logs</div>
-                <pre className="bg-slate-50 border border-slate-200 rounded-md p-2 overflow-x-auto whitespace-pre-wrap break-all">
-{JSON.stringify(result.logs, null, 2)}
-                </pre>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* 运行历史已移到右侧 RunHistoryPanel */}
 
         <svg
           ref={svgRef}

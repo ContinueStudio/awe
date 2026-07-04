@@ -1,51 +1,59 @@
-import { useEffect, useState } from 'react';
-import { Cpu, Github, BookOpen } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Cpu, Github } from 'lucide-react';
 import { api } from '@/lib/api';
 import { WorkflowSidebar } from './components/WorkflowSidebar';
 import { NodePalette } from './components/NodePalette';
 import { Canvas } from './components/Canvas';
-import type { NodeDefinition, Workflow, WorkflowGraph } from './lib/types';
+import { RunHistoryPanel } from './components/RunHistoryPanel';
+import type { NodeDefinition, RunResult, Workflow, WorkflowGraph } from './lib/types';
 
 const EMPTY_GRAPH: WorkflowGraph = { nodes: [], edges: [] };
 
 export default function App() {
   const [nodes, setNodes] = useState<NodeDefinition[]>([]);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
-  const [currentId, setCurrentId] = useState<string | null>(null);
-  const [currentName, setCurrentName] = useState('未命名工作流');
+  const [current, setCurrent] = useState<Workflow | null>(null);
   const [graph, setGraph] = useState<WorkflowGraph>(EMPTY_GRAPH);
+  const [currentName, setCurrentName] = useState('未命名工作流');
   const [health, setHealth] = useState<{ ok: boolean; version: string } | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
 
+  // 启动拉节点 + 健康
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth({ ok: false, version: 'unknown' }));
     api.listNodes().then((d) => setNodes(d.nodes)).catch(console.error);
-    api.listWorkflows().then((d) => setWorkflows(d.workflows as any)).catch(console.error);
   }, []);
 
-  // 加载工作流
-  const selectWorkflow = async (wf: Workflow) => {
-    setCurrentId(wf.id);
+  // 左侧列表 3s 自动刷新（拿到最新 run_count / last_status）
+  useEffect(() => {
+    const refresh = () => api.listWorkflows().then((d) => setWorkflows(d.workflows as any)).catch(console.error);
+    refresh();
+    const t = setInterval(refresh, 3000);
+    return () => clearInterval(t);
+  }, []);
+
+  // 切换 / 创建
+  const selectWorkflow = (wf: Workflow) => {
+    setCurrent(wf);
     setCurrentName(wf.name);
     setGraph(wf.graph || EMPTY_GRAPH);
   };
-
   const createNew = () => {
-    setCurrentId(null);
+    setCurrent(null);
     setCurrentName('未命名工作流');
     setGraph(EMPTY_GRAPH);
   };
-
   const deleteWorkflow = async (id: string) => {
     await fetch(`/api/workflows/${id}`, { method: 'DELETE' });
-    if (currentId === id) createNew();
+    if (current?.id === id) createNew();
+    const d = await api.listWorkflows();
+    setWorkflows(d.workflows as any);
   };
 
-  // 添加节点 - 错开排布避免重叠
   const addNode = (type: string) => {
-    const id = `n_${Date.now().toString(36)}`;
     const def = nodes.find((n) => n.type === type);
     if (!def) return;
-    // 按现有节点数计算阶梯式偏移 (每加一个新节点右移 30、下移 20)
+    const id = `n_${Date.now().toString(36)}`;
     const step = graph.nodes.length;
     setGraph({
       nodes: [
@@ -62,6 +70,56 @@ export default function App() {
     setCurrentName((n) => (n === '未命名工作流' ? def.name + ' 工作流' : n));
   };
 
+  /** 同步 Canvas 内部保存后拿到的 workflowId 到 current */
+  const updateWorkflowId = useCallback((id: string | null) => {
+    if (!id) return;
+    setCurrent((prev) => (prev ? { ...prev, id } : prev));
+    setWorkflows((prev) => {
+      if (prev.find((w) => w.id === id)) return prev;
+      // 临时占位：等左侧下次 3s 刷新会拿到真实数据
+      return prev;
+    });
+  }, []);
+
+  /** 保存后拿到 id，刷新左侧列表 */
+  const onSave = useCallback(async (id: string) => {
+    const d = await api.listWorkflows();
+    setWorkflows(d.workflows as any);
+    const wf = (d.workflows as Workflow[]).find((w) => w.id === id);
+    if (wf) {
+      setCurrent(wf);
+      setCurrentName(wf.name);
+    }
+  }, []);
+
+  /** 跑工作流：先确保有 id，然后调 run_workflow */
+  const handleRun = useCallback(async () => {
+    let id = current?.id;
+    if (!id) {
+      // 还没保存 → 自动 save
+      const res = await api.saveWorkflow({
+        name: currentName || '未命名工作流',
+        description: '',
+        nodes: graph.nodes,
+        edges: graph.edges,
+      });
+      id = res.id;
+      setCurrent({ id, name: currentName, description: '', graph, created_at: 0, updated_at: 0 } as Workflow);
+    }
+    setIsRunning(true);
+    try {
+      const r: RunResult = await api.runWorkflow(id, {});
+      // 跑完刷新左侧列表（拿到新 run_count + last_status）
+      const d = await api.listWorkflows();
+      setWorkflows(d.workflows as any);
+      void r; // 详情在 RunHistoryPanel 自行拉取
+    } catch (e) {
+      console.error('run failed', e);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [current, currentName, graph]);
+
   return (
     <div className="h-full w-full flex flex-col bg-slate-50">
       {/* 顶栏 */}
@@ -75,7 +133,7 @@ export default function App() {
             <div className="text-[10px] text-slate-500 leading-tight">智能体工作流引擎</div>
           </div>
         </div>
-        <span className="ml-2 text-[11px] text-slate-400">v0.1.0</span>
+        <span className="ml-2 text-[11px] text-slate-400">v0.2.1</span>
         <div className="ml-auto flex items-center gap-2 text-[11px] text-slate-500">
           {health ? (
             <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full ${health.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
@@ -91,23 +149,32 @@ export default function App() {
         </div>
       </header>
 
-      {/* 三栏布局 */}
+      {/* 4 栏布局：左 Sidebar | NodePalette | Canvas | RunHistory */}
       <div className="flex-1 flex min-h-0">
         <WorkflowSidebar
-          currentId={currentId}
+          currentId={current?.id ?? null}
+          items={workflows}
           onSelect={selectWorkflow}
           onCreate={createNew}
           onDelete={deleteWorkflow}
         />
         <NodePalette onAdd={addNode} />
-        <Canvas
-          workflowId={currentId}
-          workflowName={currentName}
-          graph={graph}
-          nodes={nodes}
-          onChange={setGraph}
-          onWorkflowId={setCurrentId}
-          onWorkflowName={setCurrentName}
+        <div className="flex-1 min-w-0">
+          <Canvas
+            workflowId={current?.id ?? null}
+            workflowName={currentName}
+            graph={graph}
+            nodes={nodes}
+            onChange={setGraph}
+            onWorkflowId={updateWorkflowId}
+            onWorkflowName={setCurrentName}
+            onSave={onSave}
+          />
+        </div>
+        <RunHistoryPanel
+          current={current}
+          onRun={handleRun}
+          isRunning={isRunning}
         />
       </div>
     </div>

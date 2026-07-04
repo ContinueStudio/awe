@@ -5,9 +5,35 @@
 
 ---
 
-## 1. 当前进度 (v0.1.0 - 2026-07-04)
+## 1. 当前进度 (v0.2.1 - 2026-07-04 19:00)
 
-### 1.0 今日进展 (2026-07-04 17:14)
+### 1.0 今日进展 (2026-07-04 19:00)
+
+**【本轮】运行历史面板 + 工作流状态点 全链路打通**
+- ✅ **修复前端 build 错误**：`App.tsx` 中 `updateCurrentId` 未定义导致 tsc 失败，dist 实际是旧版
+  - 补一个 `useCallback` 同步 Canvas 内部保存后的 workflowId 到 current
+  - 清理 `Canvas.tsx` 中残留的 `useState<RunResult>` 引用
+  - `npm run build` 通过：1586 modules，gzip 64.12 kB
+- ✅ **后端 `list_workflows` 增强**（`backend/app/core/database.py`）：返回 `run_count` / `last_status` / `last_started_at`，让前端能区分成功/失败/未跑过的工作流
+- ✅ **后端 `delete_workflow` 级联清理**：删工作流时一并清掉 runs / checkpoints / schedules，避免悬空记录
+- ✅ **新增 `db_clean_failed.py`**：按"至少成功一次"规则批量清理测试工作流（保留成功 / 删除从未成功 / 失败 / 仅 running）
+- ✅ **新增 `demo_self_check.py`**：跑通"webhook → skill → end"最小工作流（无 LLM 依赖，3 秒出结果）
+- ✅ **MCP 链路已通**（8766 端口，streamable-http 传输）
+  - `mcp_awe` MCP 工具已挂载到 Trae：8 个工具可用（list_nodes / list_workflows / get_workflow / save_workflow / validate_workflow / run_workflow / get_run / list_runs）
+- 🐛 **bug fix：`builder.py` 模板渲染时 `json` 未 import** 导致字典类端口输出渲染失败，已补 `import json`
+
+**当前数据状态**
+- 工作流 1 个：`AWE 自检 - Skill Hello World`（1 次 succeeded run）
+- 后端 API 已重启加载新代码；前端 dist 是 18:56 构建的新版
+- 用户打开 http://127.0.0.1:8765/ 能看到：左侧工作流带**绿点（succeeded）+ "1 次运行 · succeeded · 时间"** 副文本，右侧"运行历史"面板就位
+
+**前端日志 / 状态可视化能力**
+- `WorkflowSidebar` 状态点：succeeded=绿 / failed=红 / running=琥珀+旋转 / never=灰
+- 副文本：N 次运行 · last_status · last_started_at 本地化时间 / 或"未运行 · updated_at"
+- `RunHistoryPanel` 3 秒自动刷新：列表项显示 run id 前 8 位 + 状态徽章 + 耗时；点击展开 Logs（节点 / 类型 / 状态点 / ms）+ Outputs JSON + Inputs + Error 红条
+- 选中工作流后画布加载其 graph，工具条显示工作流名称，"运行"按钮启用
+
+### 1.1 早期进展 (2026-07-04 17:14)
 
 - ✅ **后端冒烟测试 5/5 通过** (`backend/smoke_test.py`)：
   ```
@@ -167,6 +193,98 @@ cd d:\AWE\backend
   1. 把 `_FRONTEND_DIST` 的定义上移到根路由之前
   2. 改完后用 `python -m py_compile app/main.py` 或直接 `smoke_test.py` 验证
 - **教训**：Python 函数体运行时解析的"懒求值"别滥用，**模块级变量先定义再被引用**，避免代码异味和工具误改。
+
+### 3.9 SVG foreignObject 节点高度用 `max(ins,outs)` 计算 → 内容被裁
+- **症状**：在画布上添加 `LLM 推断`、`意图分类` 等节点，发现超过两行的内容显示不完全；浏览器 DOM 测量 `foreignObject.scrollHeight=111` 但 `height=94`，**溢出 17px**。
+- **原因**：
+  - 旧公式 `Math.max(80, 56 + max(inputs,outs) * 22 + 16)` 把 inputs 和 outputs 看成同一区域，但实际两者**在 NodeRender 中是各自一行**（`def.inputs.map` + `def.outputs.map`），总行数是 `inputs + outputs`。
+  - 例：LLM 节点 inputs=1, outputs=1 → max=1 → 高度 56+22+16=94；实际 2 行 ports 各 20px，scrollHeight=111。
+  - 端口行高 20px（h-5），但旧公式用 22px，且没有给 inputs+outputs 总数算。
+- **解决**：
+  1. `Canvas.tsx` 引入显式常量：`HEADER_H=56`、`PORT_GAP=20`、`PORT_AREA_PAD=8`
+  2. `nodeHeight(totalPorts) = Math.max(120, HEADER_H + PORT_AREA_PAD + totalPorts * PORT_GAP + 8)`，**用 inputs+outputs 总数**
+  3. `portDotY()` 用相同常量算 SVG 端口圆点 y，对齐 NodeRender 实际行位置
+  4. 节点外壳加 `h-full overflow-hidden` 兜底
+- **教训**：
+  - SVG `<foreignObject>` 必须用真实内容高度，硬编码公式容易漏算
+  - inputs / outputs 是**两组独立列表**，不是互斥选项，公式要用 sum 不要用 max
+  - 自定义节点组件时，**把尺寸相关的 magic number 抽成常量**（HEADER_H / PORT_GAP 等），便于与 JSX class 对照
+
+### 3.10 MCP stdio 模式启动的 4 个坑
+1. **logger 写 stdout 污染 stdio 帧**
+   - **症状**：`UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc6 ...`，client 端无法解析 JSON-RPC 帧
+   - **原因**：`backend/app/core/logger.py` 默认 `StreamHandler(sys.stdout)`，但 MCP stdio 协议要求 stdout 只能有 JSON-RPC 帧
+   - **解决**：在 `mcp_server.py` 顶部调用 `_redirect_root_logger_to_stderr()`，把所有 `awe.*` logger 重新指向 stderr
+2. **同步 tool 函数里 `asyncio.run()` 触发 "running event loop"**
+   - **症状**：`RuntimeError: asyncio.run() cannot be called from a running event loop`，`coroutine 'Pregel.ainvoke' was never awaited`
+   - **原因**：FastMCP server 自身在 anyio 事件循环里跑；同步 tool 函数又用 `asyncio.run()` 启动新循环会冲突
+   - **解决**：把 `run_workflow` 改成 `async def`，直接 `await compiled.ainvoke(state)`
+3. **LangGraph state 有环引用，`json.dumps` 失败**
+   - **症状**：`Error executing tool run_workflow: Circular reference detected`
+   - **原因**：state 中 nodes/edges 互相引用，`_make_node_fn._fn` 返回的 state 会被 Pydantic 再次序列化
+   - **解决**：`_ok()` 用 `database._safe_json` 代替 `json.dumps`，**剥离环引用**（同样的修复已用于 API 路由 `workflows.py`）
+4. **`_safe_json(obj, ensure_ascii=False)` TypeError**
+   - **症状**：`name '_safe_json' is not defined` 之后所有 tool 报同样错
+   - **原因**：`_safe_json` 函数签名只有 `obj`，不接受 `ensure_ascii` 参数；额外，import 语句 `from .core.database import db` 没把 `_safe_json` 一起导入
+   - **解决**：(a) 改成 `from .core.database import db, _safe_json`；(b) 移除多余 `ensure_ascii` 参数（`_safe_json` 内部已用 `ensure_ascii=False`）
+
+### 3.11 模板渲染 `{{a.outputs.b.c}}` 点号嵌套不支持
+- **症状**：`prompt = "用户说：{{n1.outputs.body.text}}"` 渲染成 `"用户说：。"`，`n1.outputs.body.text` 变成空字符串
+- **原因**：原 `_render_templates` 直接用 `(outputs[uid] or {}).get(port)`，把 `body.text` 当字面 key 查，dict 没这个 key 返回 None
+- **解决**：改写为 `_resolve(root, path)` 函数，按 `re.findall(r"[a-zA-Z0-9_]+|\[[^\]]+\]", path)` 切段，**逐层取 dict / list**（同时支持 `b[0]` / `b['k']` 下标）
+- **验证**：AI Agent demo 中 n3.prompt 渲染为 `"用户说：你好呀！。请用一句热情的中文回应。"` ✓
+- **教训**：
+  - 模板路径解析要按"点号 = 嵌套层级"理解，不能当字面 key
+  - 任何 DSL / 模板引擎遇到点号路径都应支持嵌套查找
+
+### 3.12 后台 MCP server 不热加载 Python 代码
+- **症状**：修改 `builder.py._render_templates` 后，跑新 demo 还是旧行为（模板空）
+- **原因**：`python -m app.mcp_server --http` 启动的是一个**长寿命 uvicorn 进程**，不会因为 Python 源文件改动而 reload
+- **解决**：每次改完 Python 源文件，**重启 MCP server 子进程**才能生效
+- **教训**：
+  - 长寿命后台服务没有 uvicorn `--reload` 自动加载
+  - debug 时碰到"明明改对了但行为没变"，**先检查进程是否用的旧代码**（重启验证最快）
+
+### 3.13 前端 build 通过 ≠ dist 用了最新代码
+- **症状**：修了 `App.tsx` / `Canvas.tsx` 后浏览器还是旧行为，**但 `npm run build` 也没有报错**
+- **原因**：`tsc -b` 类型检查对未使用的 prop 不会失败；旧 dist 的 `index-*.js` 时间戳停留在前一次构建
+- **教训**：
+  - 改完前端代码后**必须重新 `npm run build`** 才能让 dist 反映改动
+  - 用 `Get-Item dist/assets/*.js | LastWriteTime` 验证 dist 实际构建时间
+  - 如果 dist 时间戳比源码旧 → 后端 `/` 路由回的是旧版前端
+
+### 3.14 builder.py `_render_templates` 使用 `json.dumps` 但未 import
+- **症状**：end 节点 `message: "payload={{n2.outputs.result}}"` 渲染后变成字面量 `{{n2.outputs.result}}`，不替换
+- **原因**：`builder.py._render_templates` 内部用 `json.dumps(val, ensure_ascii=False)`，但模块顶部漏了 `import json`，触发 `NameError` 被 catch 吞掉
+- **修复**：顶部补 `import json`
+- **教训**：
+  - LangGraph 节点 try/except 兜底太宽会让真实 bug 静默掉
+  - 模板渲染这种基础工具的 NameError 应该让它炸出来
+  - 修 builder 这类核心代码后，**重启后端进程**才能生效（见 3.12）
+
+### 3.15 Windows PowerShell 默认 GBK 编码 + Python 打印中文
+- **症状**：脚本 print 含中文的字符串（`"AWE 自检"`）直接抛 `UnicodeEncodeError: 'gbk' codec`
+- **原因**：Windows PowerShell 默认 stdout 是 GBK，Anaconda 的 Python 检测到 tty 后用 GBK
+- **修复**：脚本顶部加 `sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")`
+- **教训**：
+  - AWE 工具脚本凡是会 print 中文 / emoji 的，**先做 UTF-8 stdout reconfigure**
+  - `print("✓")` 之类的 emoji 同样会炸，**改用 ASCII 标识符**（`[KEEP]` / `[DEL]`）最稳
+
+### 3.16 venv 才是项目的 site-packages 源
+- **症状**：用 `D:\Anaconda\python.exe` 跑 demo 报 `ModuleNotFoundError: No module named 'langgraph'`，但 uvicorn 后端进程明明也是用 Anaconda 那个 python 启动的却能跑
+- **原因**：项目依赖（`langgraph` / `langchain` / `litellm` 等）只装在 `D:\AWE\backend\venv\Lib\site-packages` 里，Anaconda 自己的 site-packages 是空的；后端进程能跑是因为 venv 创建时用了 `--system-site-packages` 或 PYTHONPATH 间接让 Anaconda 看到了 venv 路径
+- **教训**：
+  - **写测试 / demo 脚本时，固定用 `D:\AWE\backend\venv\Scripts\python.exe`**，不要用 Anaconda 那个
+  - 启动 uvicorn 之前先确认是 venv 那个 python（看 `Get-WmiObject Win32_Process | CommandLine`）
+  - 别假设两个 python 解释器能 import 同一份依赖
+
+### 3.17 MCP server HTTP 端口和 API 端口要分清
+- **症状**：后端 API 跑 8765，MCP 跑 8766；之前一直用 8765 调 MCP，调不通
+- **原因**：`mcp_server.py --http` 监听 8766 端口（`config.py` 里默认 port=8766），跟 FastAPI 服务的 8765 是两个独立进程
+- **教训**：
+  - **API**（REST）= 8765，前端 fetch `/api/*` 用这个
+  - **MCP**（streamable-http）= 8766，AI Agent / `mcp_awe` 工具用这个
+  - 重启时两个一起 stop + start
 
 ---
 

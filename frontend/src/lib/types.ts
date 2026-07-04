@@ -44,12 +44,35 @@ export interface Workflow {
   graph: WorkflowGraph;
   created_at: number;
   updated_at: number;
+  run_count?: number;
+  last_status?: 'running' | 'succeeded' | 'failed' | null;
+  last_started_at?: number | null;
+}
+
+export interface RunRecord {
+  id: string;
+  workflow_id: string;
+  status: 'running' | 'succeeded' | 'failed';
+  started_at: number;
+  finished_at?: number | null;
+  error?: string;
+  inputs?: Record<string, unknown>;
+  state?: { outputs?: Record<string, unknown>; logs?: RunLog[] };
+}
+
+export interface RunLog {
+  node: string;
+  type: string;
+  ok: boolean;
+  ms?: number;
+  error?: string;
+  ts: number;
 }
 
 export interface RunResult {
   run_id: string;
   status: 'running' | 'succeeded' | 'failed';
   outputs: Record<string, Record<string, unknown>>;
-  logs: Array<{ node: string; type: string; ok: boolean; ms?: number; error?: string; ts: number }>;
+  logs: RunLog[];
   error?: string;
 }
