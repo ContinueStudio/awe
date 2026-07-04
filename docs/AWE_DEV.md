@@ -7,6 +7,23 @@
 
 ## 1. 当前进度 (v0.1.0 - 2026-07-04)
 
+### 1.0 今日进展 (2026-07-04 17:14)
+
+- ✅ **后端冒烟测试 5/5 通过** (`backend/smoke_test.py`)：
+  ```
+  [1] health OK: {"ok":true,"version":"0.1.0"}
+  [2] nodes OK: 12 types -> ['webhook', 'end', 'llm', 'intent']...
+  [3] save workflow OK
+  [4] run OK: status=succeeded outputs=['n1', 'n2']
+  [5] validate negative OK
+  ```
+- ✅ **后端服务启动成功**（18765 端口），端到端验证：
+  - `GET /api/health` → `{"ok":true,"version":"0.1.0"}`
+  - `GET /api/nodes` → 12 个节点定义
+  - `GET /` → 返回前端 `dist/index.html`（449 字节，含 AWE 标题）
+- ✅ **前端 dist 已构建**（`npm run build` 通过，1585 modules，gzip 62kB）
+- 🐛 **重构 main.py 变量定义顺序**（见 3.8）：把 `_FRONTEND_DIST` 的定义从 SPA fallback 之后移到根路由之前，消除 "先引用后定义" 的代码异味
+
 ### 1.1 已实现 ✅
 
 **后端 (`backend/`)**
@@ -26,6 +43,7 @@
 - 节点配置面板（根据 `config_schema` 动态生成表单）
 - 工作流保存 / 列表 / 切换 / 删除
 - 运行结果展示（右侧抽屉）
+- 添加节点阶梯式排布（`step % 6 * 260`、`Math.floor(step/6) * 180`，避免重叠）
 
 **桌面端 (`desktop/`)**
 - PyWebview 启动入口：子进程拉起后端 + 前端 dev server，窗口化
@@ -142,6 +160,14 @@ cd d:\AWE\backend
 - **解决**：用分号 `;` 代替，或者用 `; if ($?) { ... }`。
 - **教训**：Trae 终端是 PowerShell 5，**写命令别用 bash 语法**。
 
+### 3.8 main.py 模块级变量先引用后定义
+- **症状**：重构后 `app.include_router(...)` 那行被 Edit 工具误改成了 `tags=["workflows")`（中括号变圆括号），导致 SyntaxError，后端启动失败，smoke_test 卡在 `[WinError 10061]`。
+- **原因**：原 main.py 把 `_FRONTEND_DIST` 定义放在 `spa_fallback` 之后，被 `root()` 函数引用，函数体虽然运行时才解析，但代码可读性差，容易被工具误改。
+- **解决**：
+  1. 把 `_FRONTEND_DIST` 的定义上移到根路由之前
+  2. 改完后用 `python -m py_compile app/main.py` 或直接 `smoke_test.py` 验证
+- **教训**：Python 函数体运行时解析的"懒求值"别滥用，**模块级变量先定义再被引用**，避免代码异味和工具误改。
+
 ---
 
 ## 4. 架构笔记
@@ -220,3 +246,10 @@ cd d:\AWE\backend
 - 🐛 修复 Windows 端口占用 (3.2)
 - 🐛 修复 Vite CSS @import 顺序 (3.4)
 - 🐛 修复 SPA fallback 路由冲突 (3.6)
+- 🐛 重构 main.py 变量定义顺序 (3.8)
+
+### 2026-07-04 (v0.1.0 - 17:14 二次确认)
+- ✅ 后端 18765 端口启动成功（避开 8765 系统服务占用）
+- ✅ `npm run build` 1585 modules / gzip 62kB 通过
+- ✅ 端到端验证：`/api/health`、`/api/nodes`、根路径 `/` 都正常返回
+- ✅ 节点添加阶梯式排布已在最新 dist 中

@@ -36,11 +36,16 @@ app.add_middleware(
 app.include_router(workflows_router, prefix="/api", tags=["workflows"])
 
 
+# ---------------- 静态前端 (built dist) ----------------
+
+# 前端构建产物目录：<AWE>/frontend/dist
+_FRONTEND_DIST: Path = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+
 @app.get("/")
 def root() -> dict:
     """根路径直接返回前端 index.html。"""
     if _FRONTEND_DIST.exists():
-        from fastapi.responses import FileResponse
         return FileResponse(str(_FRONTEND_DIST / "index.html"))
     return {
         "name": settings.app_name,
@@ -54,11 +59,6 @@ def root() -> dict:
 def health() -> dict:
     return {"ok": True, "version": settings.version}
 
-
-# ---------------- 静态前端 (built dist) ----------------
-
-# 前端构建产物目录：<AWE>/frontend/dist
-_FRONTEND_DIST: Path = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 if _FRONTEND_DIST.exists():
     # 挂载 assets

@@ -40,13 +40,13 @@ export default function App() {
     if (currentId === id) createNew();
   };
 
-  // 添加节点
+  // 添加节点 - 错开排布避免重叠
   const addNode = (type: string) => {
     const id = `n_${Date.now().toString(36)}`;
     const def = nodes.find((n) => n.type === type);
     if (!def) return;
-    // 简单布局：按现有数量级联
-    const offset = (graph.nodes.length % 6) * 40;
+    // 按现有节点数计算阶梯式偏移 (每加一个新节点右移 30、下移 20)
+    const step = graph.nodes.length;
     setGraph({
       nodes: [
         ...graph.nodes,
@@ -54,7 +54,7 @@ export default function App() {
           id,
           type,
           config: {},
-          meta: { title: def.name, x: 120 + offset, y: 120 + offset },
+          meta: { title: def.name, x: 140 + (step % 6) * 260, y: 160 + Math.floor(step / 6) * 180 },
         },
       ],
       edges: [...graph.edges],
