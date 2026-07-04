@@ -32,6 +32,7 @@
   - **Popen text=True 默认系统编码**：`encoding='utf-8', errors='replace'` 必须显式声明，否则子进程中文输出会抛 `UnicodeDecodeError`
   - **Vite 残留进程**：按 Ctrl+C 关闭 cmd 后 Vite node.exe 不一定会退出，下次启动会端口冲突；启动前 `taskkill` 是最稳的
   - **Python docstring 中的 `\X` 序列**：会被解析为转义，字符串前缀加 `r` 即可
+  - **【关键】Windows .bat 文件必须是纯 ASCII**（commit f5babfe）：cmd.exe 默认按 GBK 解码 .bat。如果含 UTF-8 中文/`chcp 65001`，第一行被解析成乱码命令 `'曦懿?chcp' 不是内部或外部命令` 然后逐行执行报错。.bat 只能有英文和数字，所有中文/Unicode 交给 Python 处理
 
 ### 1.0 今日进展 (2026-07-05 07:45)
 
