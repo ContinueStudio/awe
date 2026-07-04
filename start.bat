@@ -1,18 +1,13 @@
 @echo off
-REM AWE 一键启动 (后端 8765 + 可选 Vite dev 5173)
-REM 参照 D:\APA\lawe_project\start.bat 实现
-chcp 65001 >nul
-title AWE v0.2.9 启动器
+REM AWE one-click launcher. Thin wrapper around start.py.
+REM All output goes through Python (which forces UTF-8 internally).
+REM Do NOT use chcp 65001 or Chinese characters in this file
+REM  (cmd.exe decodes .bat as GBK by default, which would mangle them).
+title AWE Launcher
 
 cd /d "%~dp0"
 
-echo.
-echo ======================================================
-echo   AWE - Agentic Workflow Engine v0.2.9
-echo ======================================================
-echo.
-
-REM 优先使用 backend\venv 的 Python；如无则降级到 PATH
+REM Prefer venv python; fall back to PATH
 set "PY="
 if exist "backend\venv\Scripts\python.exe" set "PY=backend\venv\Scripts\python.exe"
 
@@ -29,7 +24,7 @@ if defined PY (
 
 if %ERRORLEVEL% NEQ 0 (
   echo.
-  echo [AWE] 启动失败，错误码 %ERRORLEVEL%
+  echo [AWE] Start failed with code %ERRORLEVEL%
 )
 
 echo.
