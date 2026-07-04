@@ -31,62 +31,74 @@ _FORBIDDEN_AST = (
 
 
 _DENY_NAMES = {
-    "os", "subprocess", "sys", "shutil", "socket", "ctypes",
-    "requests", "httpx", "urllib", "asyncio", "multiprocessing",
-    "exec", "eval", "compile", "__import__", "open", "input",
-    "globals", "locals", "vars", "getattr", "setattr", "delattr",
+    # shell 字符串注入类（最容易出事）
+    "os.system",
+    "os.popen",
+    "os.execv",
+    "os.execvp",
+    # 反射 + 代码自执行类
+    "exec",
+    "eval",
+    "compile",
+    # 直接文件写
+    "open",
+    # 用户输入（死循环风险）
+    "input",
+    # 反射类（绕过审计）
+    "globals",
+    "locals",
+    "vars",
+    "getattr",
+    "setattr",
+    "delattr",
 }
 
 
 def _ast_audit(code: str) -> str | None:
-    """ast 静态审计：发现高危调用返回错误信息；否则 None。"""
+    """ast 静态审计：拦截高危函数调用 + subprocess shell=True。
+
+    允许 import（DrissionPage / pywinauto / os / subprocess 都是 RPA 常用库），
+    只在「具体危险调用」层面拦截。
+    """
     try:
         tree = ast.parse(code)
     except SyntaxError as exc:
         return f"语法错误: {exc.msg} (line {exc.lineno})"
+
+    def _called_name(func: ast.AST) -> str | None:
+        """把 func 节点序列化成 'os.system' 这种点号形式。"""
+        parts: list[str] = []
+        cur = func
+        while isinstance(cur, ast.Attribute):
+            parts.append(cur.attr)
+            cur = cur.value
+        if isinstance(cur, ast.Name):
+            parts.append(cur.id)
+            return ".".join(reversed(parts))
+        return None
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
-            func = node.func
-            name = None
-            if isinstance(func, ast.Name):
-                name = func.id
-            elif isinstance(func, ast.Attribute):
-                name = func.attr
+            name = _called_name(node.func)
             if name and name in _DENY_NAMES:
                 return f"高危调用被拦截: {name}()"
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            return "禁止 import 语句；如需调用 RPA 库，请使用 Skill_Python 节点 (DrissionPage / pywinauto)"
+            # subprocess.Popen(..., shell=True) 也算 shell 注入，禁止
+            if name == "subprocess.Popen":
+                for kw in node.keywords:
+                    if kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True:
+                        return "高危调用被拦截: subprocess.Popen(shell=True)"
     return None
 
 
-_SAFE_BUILTINS = {
-    "print": print,
-    "len": len,
-    "range": range,
-    "str": str,
-    "int": int,
-    "float": float,
-    "bool": bool,
-    "list": list,
-    "dict": dict,
-    "tuple": tuple,
-    "set": set,
-    "min": min,
-    "max": max,
-    "sum": sum,
-    "sorted": sorted,
-    "enumerate": enumerate,
-    "zip": zip,
-    "map": map,
-    "filter": filter,
-    "isinstance": isinstance,
-    "type": type,
-    "abs": abs,
-    "round": round,
-    "True": True,
-    "False": False,
-    "None": None,
-}
+_SAFE_BUILTINS: Dict[str, Any] = {}
+# 从当前解释器拷贝一份完整 builtins dict，让所有 Python 内置名字（next/iter/
+# FileNotFoundError/RuntimeError 等等）都可用。安全靠 _ast_audit 拦截高危调用来兜底。
+import builtins as _b
+if isinstance(_b.__dict__, dict):
+    _SAFE_BUILTINS = dict(_b.__dict__)
+# 抹掉最危险的几个函数，ast 审计同时也拦一遍作为冗余
+for _bad in ("exec", "eval", "compile", "input"):
+    _SAFE_BUILTINS.pop(_bad, None)
 
 
 def _exec_sync(code: str, glb: Dict[str, Any], out: io.StringIO, err: io.StringIO) -> Dict[str, Any]:

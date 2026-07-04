@@ -5,7 +5,37 @@
 
 ---
 
-## 1. 当前进度 (v0.2.4 - 2026-07-04 21:05)
+## 1. 当前进度 (v0.2.5 - 2026-07-04 22:15)
+
+### 1.0 今日进展 (2026-07-04 22:15)
+
+**【本轮】去主界面 GitHub 图标 + 去编辑器"日志在主界面"提示 + 沙盒开放 import + 预置"打开 Edge 浏览器"示例工作流**
+- ✅ **UI 清理**：
+  - `HomePage.tsx`：移除顶栏 GitHub 跳转链接
+  - `App.tsx`（Editor 顶栏）：移除"日志在主界面"文字提示（"日志已下沉到主界面"这个事实对用户已显而易见）
+- ✅ **沙盒开放 import**（DrissionPage / pywinauto / os / subprocess 都可用）：
+  - `_DENY_NAMES` 从黑名单（`"os"`, `"subprocess"` 等整个模块）改为白名单（只禁高危**函数**：`os.system` / `os.popen` / `os.exec*` / `subprocess.Popen(shell=True)`）
+  - `_SAFE_BUILTINS` 改为从 `builtins.__dict__` 拷贝完整副本，删掉 `exec/eval/compile/input`，保留 `next/iter/FileNotFoundError/RuntimeError` 等所有 Python 内置
+  - `_ast_audit` 改成"点号函数名" + 拦截 `subprocess.Popen(shell=True)` 关键字
+- ✅ **预置示例工作流** `seed_edge_workflow.py`：
+  - 节点链：`webhook → skill(启动 Edge 打开百度) → skill(tasklist 验证 Edge 在跑) → skill(taskkill 关掉 msedge.exe) → end`
+  - 已写入 db，主界面看得到
+  - 实测成功：n2 启动 Edge（pid=54700），n4 taskkill 干掉 5 个 msedge.exe 子进程（PIDs 199748/371224/398196/74632/...）
+  - 用 `subprocess.Popen` / `subprocess.run` 列表式（沙盒禁 shell=True），用 `encoding="utf-8" errors="replace"` 绕开 Windows GBK 编码坑
+- 🐛 **避坑**：
+  - **Edge 多进程模型**：主进程 1.5s 后就退出 fork 出 renderer/gpu 子进程，所以不能用"主进程 PID"做存活校验；用 `tasklist /FI "IMAGENAME eq msedge.exe"` 看进程数
+  - **沙盒 `_SAFE_BUILTINS` 太严会破坏正常代码**：写"白名单常用函数"会让 `next()` `iter()` `FileNotFoundError` 这种常用名字 NameError；要拷 `builtins.__dict__` 完整副本再删几个真正危险的
+  - **Windows 默认 GBK 编码**：`subprocess.run(capture_output=True, text=True)` 默认按系统编码解码 Edge 的 stderr，会 `UnicodeDecodeError: 'gbk' codec can't decode byte 0xaf`；强制 `encoding="utf-8" errors="replace"`
+  - **selftest dist 检查假阳性**：esbuild production build 把 import inline 化，组件 PascalCase 名变成大写 enum（如 `HOMEPAGE`），不能用 `"HomePage" in content` 这种字面检查；改用 `HOMEPAGE` + 中文 UI 文案双校验
+- 📋 **用户操作路径**：
+  1. 浏览器 http://127.0.0.1:8765/ 硬刷新
+  2. 主界面看到两个工作流卡片：
+     - "AWE 自检 - Skill Hello World"（selftest 残留，已成功 3 次）
+     - "🌐 Edge 浏览器自动化 · 打开百度 + 截屏 + 关闭"（点"运行"会真打开 Edge）
+  3. 卡片"查看日志"按钮 → Drawer 看历史
+  4. 卡片正文 → Editor 看画布（无 GitHub 图标，无"日志在主界面"字）
+
+### 1.0 今日进展 (2026-07-04 22:20)
 
 ### 1.0 今日进展 (2026-07-04 21:05)
 

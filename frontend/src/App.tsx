@@ -190,9 +190,6 @@ export default function App() {
           />
         </div>
         <div className="ml-auto flex items-center gap-1.5">
-          <span className="text-[11px] text-slate-400 mr-1" title="运行历史请到主界面查看">
-            日志在主界面
-          </span>
           <button
             onClick={handleSave}
             disabled={isSaving}

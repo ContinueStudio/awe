@@ -7,7 +7,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import {
-  Cpu, Github, Plus, Search, MoreVertical, Pencil, Copy, Trash2, Download, Play, Loader2, FilePlus2, FolderOpen, History,
+  Cpu, Plus, Search, MoreVertical, Pencil, Copy, Trash2, Download, Play, Loader2, FilePlus2, FolderOpen, History,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -200,9 +200,6 @@ export function HomePage({
               {health.ok ? `已连接 · ${health.version}` : '后端离线'}
             </span>
           )}
-          <a className="text-slate-400 hover:text-slate-700 flex items-center gap-1 text-xs" href="https://github.com/" target="_blank" rel="noreferrer">
-            <Github className="w-4 h-4" />
-          </a>
           <button
             onClick={createNew}
             disabled={creating}
