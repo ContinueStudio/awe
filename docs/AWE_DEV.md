@@ -258,3 +258,37 @@ cd d:\AWE\backend
 - 🐛 修复节点高度被裁（3.9）：把 `nodeHeight` 从 `max(inputs,outs)*22` 改为 `(inputs+outputs)*20` + 抽常量
 - ✅ DOM 验证：3 个节点 `foH=120 ≥ sH=111`，不再溢出
 - ✅ 新 build hash：`index-QiaLHvim.js`（194 kB）
+
+### 2026-07-04 (v0.2.0 - MCP Mode B 跑通)
+- ✅ **AWE MCP Server 实现**（`backend/app/mcp_server.py`，基于官方 mcp SDK + FastMCP）
+  - stdio 传输（默认）+ streamable-http 传输（`--http`）
+  - 暴露 8 个 tools：list_nodes / list_workflows / get_workflow / save_workflow / validate_workflow / run_workflow / get_run / list_runs
+- ✅ **MCP 端到端测试 7/7 通过**（`backend/mcp_e2e_test.py`）
+  - initialize → list_tools(8) → list_nodes(12) → save_workflow → list/get_workflow → run_workflow(succeeded 9.0s) → get_run + list_runs
+  - 工作流：webhook → LLM(8756ms, OpenAI stub) → end
+  - 真实数据库读写（SQLite 8 个工作流、1 个运行）
+- 🐛 修复 4 个 MCP 启动问题（3.10）
+
+### 3.10 MCP stdio 模式启动的 4 个坑
+
+1. **logger 写 stdout 污染 stdio 帧**
+   - **症状**：`UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc6 ...`，client 端无法解析 JSON-RPC 帧
+   - **原因**：`backend/app/core/logger.py` 默认 `StreamHandler(sys.stdout)`，但 MCP stdio 协议要求 stdout 只能有 JSON-RPC 帧
+   - **解决**：在 `mcp_server.py` 顶部调用 `_redirect_root_logger_to_stderr()`，把所有 `awe.*` logger 重新指向 stderr
+
+2. **同步 tool 函数里 `asyncio.run()` 触发 "running event loop"**
+   - **症状**：`RuntimeError: asyncio.run() cannot be called from a running event loop`，`coroutine 'Pregel.ainvoke' was never awaited`
+   - **原因**：FastMCP server 自身在 anyio 事件循环里跑；同步 tool 函数又用 `asyncio.run()` 启动新循环会冲突
+   - **解决**：把 `run_workflow` 改成 `async def`，直接 `await compiled.ainvoke(state)`
+
+3. **LangGraph state 有环引用，`json.dumps` 失败**
+   - **症状**：`Error executing tool run_workflow: Circular reference detected`
+   - **原因**：state 中 nodes/edges 互相引用，`_make_node_fn._fn` 返回的 state 会被 Pydantic 再次序列化
+   - **解决**：`_ok()` 用 `database._safe_json` 代替 `json.dumps`，**剥离环引用**（同样的修复已用于 API 路由 `workflows.py`）
+
+4. **`_safe_json(obj, ensure_ascii=False)` TypeError**
+   - **症状**：`name '_safe_json' is not defined` 之后所有 tool 报同样错
+   - **原因**：`_safe_json` 函数签名只有 `obj`，不接受 `ensure_ascii` 参数；额外，import 语句 `from .core.database import db` 没把 `_safe_json` 一起导入
+   - **解决**：(a) 改成 `from .core.database import db, _safe_json`；(b) 移除多余 `ensure_ascii` 参数（`_safe_json` 内部已用 `ensure_ascii=False`）
+
+
