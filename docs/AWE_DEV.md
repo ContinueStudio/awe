@@ -253,3 +253,8 @@ cd d:\AWE\backend
 - ✅ `npm run build` 1585 modules / gzip 62kB 通过
 - ✅ 端到端验证：`/api/health`、`/api/nodes`、根路径 `/` 都正常返回
 - ✅ 节点添加阶梯式排布已在最新 dist 中
+
+### 2026-07-04 (v0.1.0 - 17:30 节点高度修复)
+- 🐛 修复节点高度被裁（3.9）：把 `nodeHeight` 从 `max(inputs,outs)*22` 改为 `(inputs+outputs)*20` + 抽常量
+- ✅ DOM 验证：3 个节点 `foH=120 ≥ sH=111`，不再溢出
+- ✅ 新 build hash：`index-QiaLHvim.js`（194 kB）
