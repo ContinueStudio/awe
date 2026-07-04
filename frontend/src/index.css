@@ -3,13 +3,53 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===== 全局基础 ===== */
 html, body, #root {
   height: 100%;
   margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, 'SF Pro', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "tnum" 1;
+  overscroll-behavior: none;
+  color: #1D2129;
 }
 
-/* 节点面板 - 玻璃质感 */
+/* ===== 主题色变量（参考 lawe） ===== */
+:root {
+  --bg: #F2F3F5;
+  --panel: #ffffff;
+  --border: #E5E6EB;
+  --border-light: #F0F0F0;
+  --border-hover: #C9CDD4;
+  --text: #1D2129;
+  --text-secondary: #4E5969;
+  --text-tertiary: #86909C;
+  --text-placeholder: #C9CDD4;
+  --primary: #4D53E8;
+  --primary-hover: #5B61F0;
+  --primary-light: #EEF0FF;
+  --primary-lighter: #F5F6FF;
+  --success: #00B42A;
+  --danger: #F53F3F;
+  --warning: #FF7D00;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+  --shadow-toolbar: 0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-panel: 0 10px 40px rgba(0, 0, 0, 0.08);
+  --shadow-selected: 0 0 0 2px #4D53E8;
+}
+
+/* ===== 滚动条 ===== */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+.thin-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ===== 玻璃面板（顶栏 / 右侧 Drawer 标题栏） ===== */
 .glass {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(40px) saturate(1.8);
@@ -17,16 +57,127 @@ html, body, #root {
   border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
-/* flowgram 容器 */
+/* ===== 画布容器（lawe 风格：点状网格） ===== */
 .awe-canvas {
   display: block;
   width: 100%;
   height: 100%;
   min-height: 600px;
-  background: #f8fafc;
+  background-color: #F2F3F5;
+  background-image: radial-gradient(circle, #DCDFE6 1px, transparent 1px);
+  background-size: 20px 20px;
 }
 
-/* 滚动条 */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
+/* ===== 节点卡片（lawe 风格：渐变背景 + 圆角 12） ===== */
+.node-card {
+  background: linear-gradient(180deg, #EFF1FB 0%, #FCFCFD 40%, #FFFFFF 100%);
+  border: 1px solid #DCE0E8;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03),
+    inset 0 1px 1px rgba(255, 255, 255, 0.8);
+  transition: box-shadow 0.18s ease, border-color 0.18s ease,
+    transform 0.12s ease;
+}
+.node-card:hover {
+  border-color: #C4CAE3;
+  box-shadow: 0 6px 18px rgba(77, 83, 232, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+.node-card.is-selected {
+  border-color: #4D53E8;
+  box-shadow: 0 0 0 2px #4D53E8, 0 6px 18px rgba(77, 83, 232, 0.1);
+}
+
+/* ===== 工具栏图标按钮 ===== */
+.awe-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #E5E6EB;
+  background: #fff;
+  color: #4E5969;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.awe-icon-btn:hover {
+  border-color: #4D53E8;
+  color: #4D53E8;
+  background: #F5F6FF;
+}
+
+/* ===== SVG 连线（参考 lawe） ===== */
+.connection-path {
+  fill: none;
+  stroke: #3B4AF3;
+  stroke-width: 2;
+  transition: stroke 0.15s;
+}
+.connection-path:hover {
+  stroke: #4D53E8;
+  stroke-width: 2.5;
+  cursor: pointer;
+}
+.connection-path-dim {
+  fill: none;
+  stroke: #C9CDD4;
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+
+/* ===== Editor 顶栏（lawe 风格：纯白底，44px 高） ===== */
+.editor-header {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 30;
+  background: #ffffff;
+  border-bottom: 1px solid #E5E6EB;
+}
+
+/* ===== 表单输入（lawe 风格：浅灰底） ===== */
+.awe-input {
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+  outline: none;
+  background: #F7F8FA;
+  color: #1D2129;
+  border: 1px solid #E5E6EB;
+  box-sizing: border-box;
+  transition: border-color 0.15s, background 0.15s;
+}
+.awe-input:focus {
+  border-color: #4D53E8;
+  background: #ffffff;
+}
+.awe-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  border-radius: 6px;
+  outline: none;
+  background: #F7F8FA;
+  color: #1D2129;
+  border: 1px solid #E5E6EB;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 60px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.awe-textarea:focus {
+  border-color: #4D53E8;
+  background: #ffffff;
+}
+.awe-code {
+  background: #0d1117;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+}

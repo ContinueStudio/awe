@@ -5,7 +5,59 @@
 
 ---
 
-## 1. 当前进度 (v0.2.6 - 2026-07-04 22:35)
+## 1. 当前进度 (v0.2.8 - 2026-07-05 07:30)
+
+### 1.0 今日进展 (2026-07-05 07:30)
+
+**【本轮】参考 D:\APA\lawe_project 重构 Editor 视觉风格（lawe 风格）**
+- 🎨 **改动范围**（参考 lawe 的 TopToolbar / BottomToolbar / NodePanel / ConfigPanel / Canvas 设计）：
+  1. **顶部 TopToolbar**（白底 44px）：返回 / Cpu 渐变 logo / 名称输入框 / v0.2.4 / 撤销 / 重做 / 保存 / 运行（lawe 风格 28x28 圆角 6 按钮 + 主色 4D53E8 运行按钮）
+  2. **底部 BottomToolbar**（新增 · 悬浮居中）：+ 节点 / 缩放比例（- 100% +） / 试运行（绿色三角）/ 节点数（白底圆角 12、阴影 0 4 16 04）
+  3. **NodePanel**（新增 · 替换左侧固定 NodePalette）：点击 + 按钮弹出，悬浮在 BottomToolbar 上方，搜索框 + 按 5 个分类分组 + 2 列网格 + 三角指示器
+  4. **Canvas 调整**：删除 SVG `<pattern>` 网格（CSS `.awe-canvas` 改用 `radial-gradient` 点状背景）；连线改用 `.connection-path` class（蓝色 #3B4AF3）；节点高度测量用 ResizeObserver
+  5. **NodeRender**：宽度从 220 改 340（lawe 风格），类型化预览按 kind 显示（webhook/http/skill/llm 等）
+  6. **ConfigDrawer**（lawe 风格）：标题栏（颜色图标 + 名称 + 类型 + 试运行/关闭）、配置表单（浅灰底 `INPUT_STYLE` + 圆角 6）、输出变量（紫色 chip 列表）、删除节点按钮（红底 + 描边）
+  7. **ConfigPanel**：所有输入框统一 lawe 风格（浅灰底 #F7F8FA、圆角 6、focus 时 #4D53E8 描边 + 白底）；boolean 改用 32x18 滑块开关
+  8. **index.css 增强**：补全 lawe 主题色变量（--bg / --primary / --success / --danger / --warning）、阴影变量（--shadow-toolbar / --shadow-panel）、`.editor-header` 工具栏样式、`.awe-input / .awe-textarea / .awe-code` 表单样式
+- 🗑 **删除文件**：`D:\AWE\frontend\src\components\NodePalette.tsx`（已被 `NodePanel` 替代）
+- 📁 **新增文件**：
+  - `D:\AWE\frontend\src\components\BottomToolbar.tsx`
+  - `D:\AWE\frontend\src\components\NodePanel.tsx`
+- ✅ **build 验证**：`npm run build` → 1587 modules transformed → dist hash `CThBIgqk`（与之前 `Cw9Qzamr` 不同，确认新代码已包含）
+- ✅ **浏览器验证**：硬刷新 http://127.0.0.1:8765/ → 顶栏 / 底栏 / 节点面板 / Drawer 全部按 lawe 风格显示
+- 🐛 **避坑**：
+  - **`getBoundingClientRect()` + foreignObject**：浏览器 snapshot 看不到 SVG foreignObject 里的 div（节点），需要用 `browser_evaluate` 派发 mousedown/mouseup/click 事件模拟点击
+  - **CSS 中文字符在 dist 中被压缩**：用 `[System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)` 读取验证
+  - **删除 NodePalette.tsx 后** App.tsx 仍 import 会报 "Cannot find module"：必须同步删除 import 语句
+
+### 1.0 今日进展 (2026-07-04 22:55)
+
+**【本轮】修编辑界面 4 个问题：节点被裁切 + 节点重叠 + 点击节点没反应 + 画布下方大片空白**
+- 🐛 **bug 复盘**：用户用截图报告编辑界面"红框空白 + 节点被裁切 + 节点重叠 + 点节点没反应"。排查 4 个根因：
+  1. `Canvas.onNodeMouseDown` 只调内部 `setSelectedId(n.id)`，**没回调 `onSelectNode` props**，所以 App.tsx 的 `setSelectedNodeId` 永远不会被调 → 右侧 Drawer 不显示
+  2. `NodeRender` 内层 div 有 `overflow-hidden` + 父级 `style={{ height: h }}` 双重限制 → ResizeObserver 测的高度**永远是被限制的 fallback 高度**（死循环）→ 节点真实内容超出 fallback 时被裁掉
+  3. `seed` 进去的 workflow 节点没 `meta.x/meta.y`，`getNodePos` 兜底返回 (100, 100) → 5 个节点全画在 (100, 100) 重叠
+  4. SVG 没设 `display: block`，inline 元素 baseline 对齐时高度只占内容
+- ✅ **修复**：
+  1. `Canvas.tsx` `onNodeMouseDown` 加 `onSelectNode(n.id)` + `onClick` 也补一刀
+  2. `NodeRender.tsx` 去掉 `overflow-hidden` + 去掉父级 `style={{ height: h }}` 硬限制，让内容自然撑开；加 `bg-white` 让外层 div 有底色
+  3. `App.tsx` 加 `autoLayoutNodes(g)` 函数：缺 `meta.x/y` 的节点按 3 列网格自动铺开（X0=160, Y0=120, DX=280, DY=200）
+  4. `index.css` `.awe-canvas` 加 `display: block; min-height: 600px`
+- ✅ **额外增强（用户友好）**：
+  - `NodeRender` 加"配置预览"区：节点 config 的前 4 个 key:value 摘要直接显示在节点卡片上（80 字符截断 + 字体 monospace）。用户**不打开 Drawer 也能看到 code/path/message 等关键配置**
+- 🐛 **避坑**：
+  - **SVG 元素默认 `display: inline`**：父级 flex 容器里 inline SVG 高度会被 baseline 对齐成内容高度。CSS 必须显式 `display: block`
+  - **ResizeObserver + `overflow-hidden` + 父级固定 height = 死循环**：永远测不到真实高度
+  - **Seed 出来的 workflow 节点**没坐标：必须前端自动铺开（不能依赖用户手动拖）
+  - **onSelectNode 是单向数据流 props**：Canvas 内部 `selectedId` 是局部状态，外部 `selectedNodeId` 是父级状态，两者必须同步
+- 📋 **用户操作路径**：
+  1. 浏览器硬刷新 http://127.0.0.1:8765/
+  2. 主界面点工作流卡片 → 进入 Editor
+  3. 5 个节点自动按 3 列网格铺开（不再重叠）
+  4. 节点卡片上**直接显示 config 预览**（code/path/timeout_sec 等）
+  5. 点节点 → 右侧 Drawer 弹出，显示完整配置表单
+
+### 1.0 今日进展 (2026-07-04 22:35)
 
 ### 1.0 今日进展 (2026-07-04 22:35)
 

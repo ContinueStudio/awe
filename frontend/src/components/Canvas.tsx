@@ -5,11 +5,12 @@
  * - 选中删除
  * - 平移 / 缩放
  *
- * 注：PRD 规划使用 @flowgram.ai；本画布为「先跑通」的轻量替代，
- * 后续可在不改 API 的前提下替换为 flowgram 的 FreeLayoutEditor。
+ * 视觉参考 lawe：
+ * - 背景用点状网格（CSS radial-gradient，class .awe-canvas）
+ * - 连线蓝色 #3B4AF3（class .connection-path）
+ * - 节点固定 340px 宽，NodeRender 内部按类型显示预览
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { CanvasEdge, CanvasNode, NodeDefinition, WorkflowGraph } from '@/lib/types';
@@ -52,8 +53,6 @@ export function Canvas({
   const [draftEdge, setDraftEdge] = useState<{ fromNode: string; x: number; y: number } | null>(null);
   const [dragNode, setDragNode] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const [panning, setPanning] = useState<{ x: number; y: number } | null>(null);
-  const [running, setRunning] = useState(false);
-  // 旧字段 result 已废弃，运行由 App.tsx 协调
 
   const nodeDefs = useMemo(() => Object.fromEntries(nodes.map((n) => [n.type, n])), [nodes]);
 
@@ -94,8 +93,7 @@ export function Canvas({
   const onNodeMouseDown = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setSelectedId(id);
-    // 同步通知父组件打开右侧配置 Drawer
-    onSelectNode(id);
+    onSelectNode(id); // 同步给父组件打开右侧配置 Drawer
     const pos = getNodePos(id);
     const w = screenToWorld(e.clientX, e.clientY);
     setDragNode({ id, offsetX: w.x - pos.x, offsetY: w.y - pos.y });
@@ -105,6 +103,7 @@ export function Canvas({
   const onCanvasMouseDown = (e: React.MouseEvent) => {
     if (e.target !== svgRef.current) return;
     setSelectedId(null);
+    onSelectNode(null);
     setPanning({ x: e.clientX - view.x, y: e.clientY - view.y });
   };
 
@@ -142,7 +141,6 @@ export function Canvas({
     const cy = e.clientY - rect.top;
     setView((v) => {
       const ns = Math.max(0.3, Math.min(2.5, v.scale * factor));
-      // 缩放围绕鼠标位置
       const wx = (cx - v.x) / v.scale;
       const wy = (cy - v.y) / v.scale;
       return { x: cx - wx * ns, y: cy - wy * ns, scale: ns };
@@ -182,12 +180,12 @@ export function Canvas({
       edges: graph.edges.filter((e) => e.source !== selectedId && e.target !== selectedId),
     });
     setSelectedId(null);
-  }, [selectedId, graph, onChange]);
+    onSelectNode(null);
+  }, [selectedId, graph, onChange, onSelectNode]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
-        // 在输入框中不触发
         const target = e.target as HTMLElement | null;
         if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
         deleteSelected();
@@ -197,7 +195,7 @@ export function Canvas({
     return () => window.removeEventListener('keydown', onKey);
   }, [deleteSelected, selectedId]);
 
-  // ---- 保存 / 运行 ----
+  // ---- 保存 ----
   const save = async () => {
     const res = await api.saveWorkflow({
       id: workflowId || undefined,
@@ -210,51 +208,40 @@ export function Canvas({
     onSave?.(res.id);
   };
 
-  // 运行已由 App.tsx 的 RunHistoryPanel 处理
-  // 旧的 run() 函数 + setRunning/setResult 已删除
-
   // 自动记忆新创建的工作流 id
   useEffect(() => {
     if (workflowId) localStorage.setItem('awe:last_id', workflowId);
   }, [workflowId]);
 
   // ---- 渲染辅助 ----
-  // 节点宽度固定 220；高度由 NodeRender 内部 ResizeObserver 测出（onMeasured 回调）
-  // 端口位置按真实 header + 端口区 padding 计算（避免算少裁掉）
-  const PORT_R = 5;
-  const NODE_W = 220;
+  // 节点宽度固定 340（与 lawe 一致）；高度由 NodeRender 内部 ResizeObserver 测出
+  const NODE_W = 340;
   const FALLBACK_NODE_H = 120;
+  const PORT_R = 5;
   const PORT_ROW_H = 20;
-  // 端口区：px-2 上 + space-y-1 + pb-2 下
   const PORT_AREA_TOP_PAD = 8;
   const PORT_AREA_BOTTOM_PAD = 8;
-  const PORT_GAP_BETWEEN = 4; // space-y-1
-  // header 段：h-1 (4px) + py-2.5 (20px) + max(icon 24, text 25) ≈ 49
+  const PORT_GAP_BETWEEN = 4;
   const HEADER_H = 49;
 
-  // 单节点高度 = max(实测高度, FALLBACK) —— 渲染时直接用
   const heightOf = (id: string, fallbackPorts: number) => {
     const m = nodeHeights[id];
     if (m && m > 0) return m;
     return Math.max(FALLBACK_NODE_H, HEADER_H + PORT_AREA_TOP_PAD + PORT_AREA_BOTTOM_PAD + fallbackPorts * (PORT_ROW_H + PORT_GAP_BETWEEN));
   };
 
-  // 端口区起始 y（header 之后）
   const portAreaStartY = HEADER_H + PORT_AREA_TOP_PAD;
-  // 端口圆点中心 y：i 行端口圆点
   const portDotY = (nodeY: number, i: number) => nodeY + portAreaStartY + i * (PORT_ROW_H + PORT_GAP_BETWEEN) + PORT_ROW_H / 2;
 
-  // 节点实测高度缓存：key=nodeId, value=真实 DOM 高度
+  // 节点实测高度缓存
   const [nodeHeights, setNodeHeights] = useState<Record<string, number>>({});
   const measureNode = useCallback((id: string, h: number) => {
     setNodeHeights((prev) => {
-      // 节流：相同高度不更新
       if (prev[id] === h) return prev;
       return { ...prev, [id]: h };
     });
   }, []);
 
-  // 工作流变化时清空
   useEffect(() => {
     setNodeHeights({});
   }, [workflowId]);
@@ -285,65 +272,29 @@ export function Canvas({
     return `M ${sP.x} ${sP.y} C ${sP.x + dx} ${sP.y}, ${tP.x - dx} ${tP.y}, ${tP.x} ${tP.y}`;
   };
 
-  const selectedNode = selectedId ? graph.nodes.find((n) => n.id === selectedId) || null : null;
-  const selectedDef = selectedNode ? nodeDefs[selectedNode.type] || null : null;
-
   return (
     <div className="relative flex-1 flex">
-      {/* 主画布 */}
       <div className="relative flex-1">
-        {/* 缩放控件 */}
-        <div className="absolute bottom-4 right-4 z-20 flex flex-col gap-1.5 glass rounded-xl p-1 shadow-sm">
-          <button className="awe-icon-btn" onClick={() => setView((v) => ({ ...v, scale: Math.min(2.5, v.scale * 1.2) }))}>
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <button className="awe-icon-btn" onClick={() => setView((v) => ({ ...v, scale: Math.max(0.3, v.scale / 1.2) }))}>
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <button className="awe-icon-btn" onClick={() => setView(DEFAULT_VIEW)}>
-            <Maximize2 className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* 运行历史已移到右侧 RunHistoryPanel */}
-
         <svg
           ref={svgRef}
           className="awe-canvas select-none"
           onMouseDown={onCanvasMouseDown}
           onWheel={onWheel}
         >
-          {/* 网格背景 */}
-          <defs>
-            <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
-              <circle cx="1" cy="1" r="1" fill="#cbd5e1" opacity="0.5" />
-            </pattern>
-            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
-            </marker>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-
           <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>
-            {/* 已有的边 */}
+            {/* 已有连线（lawe 蓝色） */}
             {graph.edges.map((e) => (
               <path
                 key={e.id || `${e.source}-${e.target}`}
                 d={edgePath(e)}
-                fill="none"
-                stroke="#64748b"
-                strokeWidth={1.5}
-                markerEnd="url(#arrow)"
+                className="connection-path"
               />
             ))}
-            {/* 正在拖拽的连线 */}
+            {/* 正在拖拽的连线（虚线） */}
             {draftEdge && (
               <path
                 d={`M ${(portPositions(draftEdge.fromNode).outs[0]?.x ?? 0)} ${(portPositions(draftEdge.fromNode).outs[0]?.y ?? 0)} L ${draftEdge.x} ${draftEdge.y}`}
-                fill="none"
-                stroke="#3478f6"
-                strokeWidth={1.5}
-                strokeDasharray="4 4"
+                className="connection-path-dim"
               />
             )}
 
@@ -353,8 +304,6 @@ export function Canvas({
               if (!def) return null;
               const pos = getNodePos(n.id);
               const totalPorts = def.inputs.length + def.outputs.length;
-              // h 用"实测高度"，没有就用 fallback —— 但外层 div 不写死 style.height，
-              // 让 NodeRender 的内层 div 自然撑开，ResizeObserver 测真实高度传上来
               const measured = nodeHeights[n.id];
               const h = measured && measured > 0
                 ? measured
@@ -366,20 +315,48 @@ export function Canvas({
                       onMouseDown={(e) => onNodeMouseDown(e, n.id)}
                       onClick={(e) => { e.stopPropagation(); setSelectedId(n.id); onSelectNode(n.id); }}
                       className={cn(
-                        'rounded-xl border bg-white shadow-sm cursor-grab active:cursor-grabbing transition-shadow',
-                        selectedId === n.id ? 'border-brand-500 ring-2 ring-brand-200 shadow-md' : 'border-slate-200 hover:shadow-md',
+                        'transition-shadow',
+                        selectedId === n.id ? 'shadow-md' : '',
                       )}
                       data-node-height={h}
                     >
                       <NodeRender
                         node={n}
                         def={def}
+                        selected={selectedId === n.id}
+                        onPointerDown={() => {}}
                         onStartEdge={(e) => startEdge(e, n.id)}
                         onCompleteEdge={(e) => completeEdge(e, n.id)}
                         onMeasured={(m) => measureNode(n.id, m)}
                       />
                     </div>
                   </foreignObject>
+                  {/* 端口小圆点（左侧输入 / 右侧输出） */}
+                  {def.inputs.map((_, i) => {
+                    const py = portDotY(0, i);
+                    return (
+                      <circle
+                        key={`in-${i}`}
+                        cx={0} cy={py} r={PORT_R}
+                        fill="#ffffff" stroke="#4D53E8" strokeWidth={1.5}
+                        style={{ cursor: 'crosshair' }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onMouseUp={(e) => completeEdge(e, n.id)}
+                      />
+                    );
+                  })}
+                  {def.outputs.map((_, i) => {
+                    const py = portDotY(0, i);
+                    return (
+                      <circle
+                        key={`out-${i}`}
+                        cx={NODE_W} cy={py} r={PORT_R}
+                        fill="#ffffff" stroke="#4D53E8" strokeWidth={1.5}
+                        style={{ cursor: 'crosshair' }}
+                        onMouseDown={(e) => startEdge(e, n.id)}
+                      />
+                    );
+                  })}
                 </g>
               );
             })}

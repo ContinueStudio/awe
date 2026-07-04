@@ -1,10 +1,12 @@
 /**
- * 单个节点的渲染（带端口）
- * - 通过 onMeasured 回调把真实内容高度透出给父组件
- * - 父组件用 ResizeObserver + onMeasured 联动，准确设置 foreignObject.height
+ * 单节点渲染（lawe 风格）
+ * - 340px 宽、minHeight 72、渐变背景、圆角 12
+ * - icon 28x28 圆角 8、title 15px bold
+ * - 按节点类型显示 config 预览（python/http/llm/skill/...）
+ * - 选中态：蓝色边框 + 蓝色阴影 + 顶部出现「复制/删除」按钮
  */
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import { Brain, Database, Globe, UserCheck, Webhook, Flag, GitBranch, Braces, Wand2, Table2, PlugZap, Code2 } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { Brain, Database, Globe, UserCheck, Webhook, Flag, GitBranch, Braces, Wand2, Table2, PlugZap, Code2, Copy, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CanvasNode, NodeDefinition } from '@/lib/types';
 
@@ -12,111 +14,249 @@ const ICONS: Record<string, any> = {
   Brain, Database, Globe, UserCheck, Webhook, Flag, GitBranch, Braces, Wand2, Table2, PlugZap, Code2,
 };
 
+// 按 AWE 节点类型映射颜色（与 lawe nodeCatalog 风格一致）
 const COLOR_BAR: Record<string, string> = {
-  emerald: 'bg-emerald-500',
-  violet: 'bg-violet-500',
-  amber: 'bg-amber-500',
-  sky: 'bg-sky-500',
-  rose: 'bg-rose-500',
-  slate: 'bg-slate-500',
+  emerald: '#00B42A',
+  violet: '#7C3AED',
+  amber: '#FF7D00',
+  sky: '#0EA5E9',
+  rose: '#F53F3F',
+  slate: '#4D53E8',
 };
 
-export interface NodeRenderHandle {
-  measure: () => void;
-}
+const COLOR_BG: Record<string, string> = {
+  emerald: 'rgba(0, 180, 42, 0.12)',
+  violet: 'rgba(124, 58, 237, 0.12)',
+  amber: 'rgba(255, 125, 0, 0.12)',
+  sky: 'rgba(14, 165, 233, 0.12)',
+  rose: 'rgba(245, 63, 63, 0.12)',
+  slate: 'rgba(77, 83, 232, 0.12)',
+};
 
 interface Props {
   node: CanvasNode;
   def: NodeDefinition;
-  onStartEdge: (e: React.MouseEvent) => void;
-  onCompleteEdge: (e: React.MouseEvent) => void;
+  selected: boolean;
+  onPointerDown?: (e: React.PointerEvent) => void;
+  onDuplicate?: () => void;
+  onDelete?: () => void;
+  onStartEdge?: (e: React.MouseEvent) => void;
+  onCompleteEdge?: (e: React.MouseEvent) => void;
   onMeasured?: (h: number) => void;
 }
 
-export const NodeRender = forwardRef<NodeRenderHandle, Props>(function NodeRender({
-  node,
-  def,
-  onStartEdge,
-  onCompleteEdge,
-  onMeasured,
-}, ref) {
+export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, onDelete, onStartEdge, onCompleteEdge, onMeasured }: Props) {
   const Icon = ICONS[def.icon] || Code2;
-  const bar = COLOR_BAR[def.color] || COLOR_BAR.slate;
-  const innerRef = useRef<HTMLDivElement | null>(null);
+  const color = COLOR_BAR[def.color] || COLOR_BAR.slate;
+  const iconBg = COLOR_BG[def.color] || COLOR_BG.slate;
+  const cfg = (node.config || {}) as Record<string, any>;
+  const ref = useRef<HTMLDivElement | null>(null);
 
-  const measure = () => {
-    if (innerRef.current && onMeasured) {
-      const h = innerRef.current.getBoundingClientRect().height;
-      if (h > 0) onMeasured(Math.ceil(h));
-    }
-  };
-
-  useImperativeHandle(ref, () => ({ measure }), []);
-
+  // ResizeObserver：测真实高度并通知父组件（用于端口定位）
   useEffect(() => {
-    if (!innerRef.current || !onMeasured) return;
-    // 首次 measure + ResizeObserver
-    measure();
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(innerRef.current);
+    if (!ref.current || !onMeasured) return;
+    const el = ref.current;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        const h = e.contentRect.height;
+        if (h > 0) onMeasured(h);
+      }
+    });
+    ro.observe(el);
+    // 立即测一次（首次渲染可能还没触发 observer）
+    const h0 = el.getBoundingClientRect().height;
+    if (h0 > 0) onMeasured(h0);
     return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [node.id, def.inputs.length, def.outputs.length]);
+  }, [onMeasured, node.id]);
 
   return (
-    <div ref={innerRef} data-node-id={node.id} data-testid="node-render" className="rounded-xl bg-white">
-      <div className={cn('h-1 w-full rounded-t-xl', bar)} />
-      <div className="px-3 py-2.5 flex items-center gap-2">
-        <span className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center shrink-0">
-          <Icon className="w-3.5 h-3.5 text-slate-600" />
-        </span>
-        <div className="min-w-0">
-          <div className="text-[13px] font-medium text-slate-800 truncate">{def.name}</div>
-          <div className="text-[10.5px] text-slate-500 truncate">{node.id}</div>
+    <div
+      ref={ref}
+      className={cn('node-card', selected && 'is-selected')}
+      style={{ width: '100%', padding: '14px 16px', cursor: 'pointer', minHeight: 72, boxSizing: 'border-box' }}
+      data-node-id={node.id}
+      data-testid="node-render"
+      onPointerDown={onPointerDown}
+    >
+      {/* header */}
+      <div className="flex items-center" style={{ marginBottom: 8 }}>
+        <div
+          style={{
+            width: 28, height: 28, background: iconBg, borderRadius: 8,
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            marginRight: 10, flexShrink: 0, color,
+          }}
+        >
+          <Icon size={16} strokeWidth={2.4} />
         </div>
-      </div>
-      <div className="px-2 pb-2 space-y-1">
-        {def.inputs.map((p, i) => (
-          <div key={`in-${i}`} className="relative flex items-center text-[11px] text-slate-600 h-5 group">
-            <span
-              onMouseDown={onCompleteEdge}
-              onMouseUp={onCompleteEdge}
-              className="absolute -left-1.5 w-3 h-3 rounded-full bg-slate-300 hover:bg-brand-500 cursor-crosshair border-2 border-white"
-              title={`输入：${p.name}`}
-            />
-            <span className="pl-3 truncate">{p.name}</span>
-            <span className="ml-auto text-[10px] text-slate-400 pr-1">{p.type}</span>
+        <span
+          style={{
+            fontSize: 15, fontWeight: 700, color: '#1a1c24',
+            flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}
+        >
+          {def.name}
+        </span>
+        {selected && (
+          <div className="flex items-center gap-1 ml-2">
+            <button
+              title="复制"
+              onPointerDown={(e) => { e.stopPropagation(); onDuplicate?.(); }}
+              className="w-6 h-6 rounded-md flex items-center justify-center"
+              style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid #e5e7eb' }}
+            >
+              <Copy size={12} color="#6b7280" />
+            </button>
+            <button
+              title="删除"
+              onPointerDown={(e) => { e.stopPropagation(); onDelete?.(); }}
+              className="w-6 h-6 rounded-md flex items-center justify-center"
+              style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid #e5e7eb' }}
+            >
+              <Trash2 size={12} color="#ef4444" />
+            </button>
           </div>
-        ))}
-        {def.outputs.map((p, i) => (
-          <div key={`out-${i}`} className="relative flex items-center text-[11px] text-slate-600 h-5 group">
-            <span
-              onMouseDown={onStartEdge}
-              className="absolute -right-1.5 w-3 h-3 rounded-full bg-slate-300 hover:bg-brand-500 cursor-crosshair border-2 border-white"
-              title={`输出：${p.name}`}
-            />
-            <span className="pl-1 truncate">{p.name}</span>
-            <span className="ml-auto text-[10px] text-slate-400 pr-3">{p.type}</span>
-          </div>
-        ))}
+        )}
       </div>
-      {/* 配置预览：让用户不打开 Drawer 也能看到关键字段（避免"啥也看不到"） */}
-      {(node.config && Object.keys(node.config).length > 0) && (
-        <div className="px-3 pb-2.5 pt-1 border-t border-slate-100 space-y-1">
-          {Object.entries(node.config).slice(0, 4).map(([k, v]) => {
-            const sv = typeof v === 'string' ? v : JSON.stringify(v);
-            const display = sv.length > 80 ? sv.slice(0, 80) + '…' : sv;
-            return (
-              <div key={k} className="text-[10.5px] text-slate-500 leading-snug">
-                <span className="text-slate-400">{k}:</span> <span className="font-mono text-slate-600 break-all">{display}</span>
-              </div>
-            );
-          })}
-          {Object.keys(node.config).length > 4 && (
-            <div className="text-[10px] text-slate-400 italic">+{Object.keys(node.config).length - 4} more fields</div>
-          )}
+
+      {/* config preview by kind */}
+      <NodePreview kind={node.type} config={cfg} defName={def.name} />
+
+      {/* 端口提示（底部） */}
+      {(def.inputs.length > 0 || def.outputs.length > 0) && (
+        <div className="flex items-center justify-between text-[10.5px] mt-2 pt-2" style={{ borderTop: '1px solid #F0F0F0', color: '#86909C' }}>
+          <span>{def.inputs.length > 0 ? `${def.inputs.length} 输入` : ''}</span>
+          <span>{def.outputs.length > 0 ? `${def.outputs.length} 输出` : ''}</span>
         </div>
       )}
     </div>
   );
-});
+}
+
+/** 按节点类型显示配置预览（参考 lawe 的 NodePreview） */
+function NodePreview({ kind, config, defName }: { kind: string; config: Record<string, any>; defName: string }) {
+  const labelStyle: React.CSSProperties = { fontSize: 11, color: '#6b7280', marginBottom: 2 };
+  const valueStyle: React.CSSProperties = { fontSize: 12, color: '#1D2129', fontFamily: 'var(--font-mono, monospace)' };
+
+  switch (kind) {
+    case 'webhook':
+      return (
+        <div>
+          <div style={labelStyle}>路径</div>
+          <code style={{ fontSize: 11, color: '#00B42A', background: '#F0FDF4', padding: '2px 6px', borderRadius: 4 }}>
+            {(config.method as string) || 'POST'} {(config.path as string) || '/webhook'}
+          </code>
+        </div>
+      );
+    case 'http_request':
+      return (
+        <div>
+          <div style={labelStyle}>请求方式</div>
+          <span style={{ display: 'inline-block', background: '#EEF2FF', padding: '2px 8px', borderRadius: 4, fontSize: 11, color: '#4D53E8', fontWeight: 600, marginBottom: 4 }}>
+            {(config.method as string) || 'GET'}
+          </span>
+          <div style={labelStyle}>URL</div>
+          <div style={{ ...valueStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4 }}>
+            {(config.url as string) || '(未设置)'}
+          </div>
+        </div>
+      );
+    case 'skill':
+      return (
+        <div>
+          <div style={labelStyle}>Python 脚本</div>
+          <div style={{
+            ...valueStyle, background: '#0d1117', color: '#e6edf3', padding: '6px 8px',
+            borderRadius: 6, maxHeight: 48, overflow: 'hidden', fontSize: 11, lineHeight: 1.4,
+          }}>
+            {config.code ? (config.code as string).split('\n').slice(0, 3).join('\n') : '(空)'}
+          </div>
+        </div>
+      );
+    case 'llm':
+      return (
+        <div>
+          <span style={{ ...labelStyle, display: 'inline-block', marginRight: 4 }}>模型:</span>
+          <span style={{ ...valueStyle, display: 'inline' }}>{(config.model as string) || 'gpt-4o-mini'}</span>
+          <div style={labelStyle}>提示词</div>
+          <div style={{ ...valueStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {(config.prompt as string) || '(空)'}
+          </div>
+        </div>
+      );
+    case 'intent_router':
+    case 'branch':
+      return (
+        <div>
+          <div style={labelStyle}>条件</div>
+          <code style={{ fontSize: 11, color: '#0d9488', background: '#F0FDFA', padding: '2px 6px', borderRadius: 4 }}>
+            {(config.expression as string) || 'True'}
+          </code>
+        </div>
+      );
+    case 'loop':
+      return (
+        <div>
+          <div style={labelStyle}>数据源</div>
+          <code style={{ fontSize: 11, color: '#ec4899', background: '#FDF2F8', padding: '2px 6px', borderRadius: 4 }}>
+            {(config.items_expr as string) || '[]'}
+          </code>
+        </div>
+      );
+    case 'sql_query':
+      return (
+        <div>
+          <div style={labelStyle}>SQL</div>
+          <div style={{
+            ...valueStyle, background: '#0d1117', color: '#e6edf3', padding: '6px 8px',
+            borderRadius: 6, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {(config.sql as string) || '(空)'}
+          </div>
+        </div>
+      );
+    case 'mcp_client':
+      return (
+        <div>
+          <div style={labelStyle}>MCP 服务</div>
+          <span style={valueStyle}>{(config.server as string) || '(未设置)'}</span>
+        </div>
+      );
+    case 'human_review':
+      return (
+        <div>
+          <div style={labelStyle}>审批人</div>
+          <span style={valueStyle}>{(config.assignee as string) || '(未指定)'}</span>
+        </div>
+      );
+    case 'knowledge_search':
+      return (
+        <div>
+          <div style={labelStyle}>知识库</div>
+          <span style={valueStyle}>{(config.kb_id as string) || '(未指定)'}</span>
+        </div>
+      );
+    case 'end':
+      return (
+        <div>
+          <div style={labelStyle}>结束消息</div>
+          <div style={{ ...valueStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {(config.message as string) || '(空)'}
+          </div>
+        </div>
+      );
+    case 'rewrite':
+      return (
+        <div>
+          <div style={labelStyle}>改写风格</div>
+          <span style={valueStyle}>{(config.style as string) || 'concise'}</span>
+        </div>
+      );
+    default:
+      return (
+        <div style={{ fontSize: 12, color: '#6b7280' }}>
+          {(config.description as string) || '点击右侧面板配置'}
+        </div>
+      );
+  }
+}
