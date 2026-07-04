@@ -55,7 +55,10 @@ class WorkflowBuilder:
         if ntype == "webhook":
             outputs = {"body": state.get("inputs", {})}
         elif ntype == "end":
-            outputs = {"payload": state.get("variables", {}).get("__final__", state.get("outputs", {}))}
+            # 优先使用 config.message（已渲染过模板）作为响应；
+            # 未配置时退到 state.outputs（兼容旧用法）。
+            msg = (cfg or {}).get("message")
+            outputs = {"payload": msg if msg else state.get("variables", {}).get("__final__", state.get("outputs", {}))}
         elif ntype == "llm":
             outputs = await _run_llm(cfg)
         elif ntype == "intent":
@@ -182,17 +185,53 @@ def _pick_branch_factory(branches: List[str]):
 
 
 def _render_templates(obj: Any, state: RunState) -> Any:
-    """递归替换字符串中的 {{a.outputs.b}}。"""
+    """递归替换字符串中的 `{{a.outputs.b.c}}`。
+
+    - `a` 是节点 id
+    - `b.c` 支持点号嵌套路径，逐层取 dict/list
+    - 找不到路径或值非标量时替换为空字符串
+    """
     import re
 
     pattern = re.compile(r"\{\{\s*([a-zA-Z0-9_]+)\.outputs\.([a-zA-Z0-9_.\[\]\"']+)\s*\}\}")
 
+    def _resolve(root: Any, path: str) -> Any:
+        """按点号路径从 root 解析值，支持 [n] / ['k'] 下标。"""
+        cur: Any = root
+        # 把路径切成段：'a.b[0].c' → ['a','b[0]','c']
+        parts = re.findall(r"[a-zA-Z0-9_]+|\[[^\]]+\]", path)
+        for seg in parts:
+            if cur is None:
+                return None
+            if seg.startswith("[") and seg.endswith("]"):
+                key = seg[1:-1].strip().strip("'\"")
+                if isinstance(cur, dict):
+                    cur = cur.get(key)
+                elif isinstance(cur, (list, tuple)):
+                    try:
+                        cur = cur[int(key)]
+                    except (ValueError, IndexError):
+                        return None
+                else:
+                    return None
+            else:
+                if isinstance(cur, dict):
+                    cur = cur.get(seg)
+                else:
+                    return None
+        return cur
+
     def _sub(s: str) -> str:
         def repl(m: re.Match) -> str:
-            uid, port = m.group(1), m.group(2)
-            val = (state.get("outputs") or {}).get(uid, {}).get(port)
+            uid, port_path = m.group(1), m.group(2)
+            node_out = (state.get("outputs") or {}).get(uid)
+            if node_out is None:
+                return ""
+            val = _resolve(node_out, port_path)
             if val is None:
                 return ""
+            if isinstance(val, (dict, list)):
+                return json.dumps(val, ensure_ascii=False)
             return str(val)
         return pattern.sub(repl, s)
 

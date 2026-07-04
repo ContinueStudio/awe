@@ -236,6 +236,13 @@ cd d:\AWE\backend
 
 ## 6. 修改记录
 
+### 2026-07-04 (v0.2.1)
+- ✅ AWE MCP Server 启动为 streamable-http 后台服务 (127.0.0.1:8766/mcp)
+- ✅ AI Agent 通过 MCP 编排 AWE 演示全流程
+- 🐛 修 end 节点 config.message 模板未渲染
+- 🐛 修 _render_templates 点号嵌套路径
+- 📝 已知：分支路由（intent label）未实现
+
 ### 2026-07-04 (v0.2.0)
 - ✅ AWE MCP Server (Mode B) 实现
 - ✅ MCP 端到端测试 7/7 通过
