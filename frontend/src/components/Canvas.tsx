@@ -228,15 +228,37 @@ export function Canvas({
   }, [workflowId]);
 
   // ---- 渲染辅助 ----
+  // 节点宽度固定 220；高度按内容自适应（标题双行 + ports 行高 20px + 边距）
+  // 经验值：色条 4 + header 56(双行 13/10.5px) + 端口区 count*20 + 内边距 8 = 68 + count*20
   const PORT_R = 5;
   const NODE_W = 220;
+  const HEADER_H = 56; // 4 (色条) + 10 (py-2.5 上) + 32 (双行 13+10.5 + leading) + 10 (py-2.5 下) ≈ 56
+  const PORT_GAP = 20; // NodeRender 内 port 行高 h-5
+  const PORT_AREA_PAD = 8; // px-2 顶 padding + pb-2 底 padding 之和
+
+  // 节点外壳高度 = header + 端口区
+  // 注意：用 inputs + outputs 总数（不是 max），因为 inputs 和 outputs 都各自占行
+  const nodeHeight = (totalPorts: number) =>
+    Math.max(120, HEADER_H + PORT_AREA_PAD + totalPorts * PORT_GAP + 8);
+
+  // 端口圆点中心 y：header 底部 + 端口区 padding-top + i 行 + 半行高
+  const portDotY = (nodeY: number, i: number) => nodeY + HEADER_H + 8 + i * PORT_GAP + PORT_GAP / 2;
 
   const portPositions = (id: string) => {
     const n = graph.nodes.find((x) => x.id === id);
     if (!n) return { ins: [], outs: [] };
     const def = nodeDefs[n.type];
-    const ins = (def?.inputs || []).map((_, i) => ({ name: def!.inputs[i].name, x: getNodePos(id).x, y: getNodePos(id).y + 36 + i * 22 }));
-    const outs = (def?.outputs || []).map((_, i) => ({ name: def!.outputs[i].name, x: getNodePos(id).x + NODE_W, y: getNodePos(id).y + 36 + i * 22 }));
+    const baseY = getNodePos(id).y;
+    const ins = (def?.inputs || []).map((_, i) => ({
+      name: def!.inputs[i].name,
+      x: getNodePos(id).x,
+      y: portDotY(baseY, i),
+    }));
+    const outs = (def?.outputs || []).map((_, i) => ({
+      name: def!.outputs[i].name,
+      x: getNodePos(id).x + NODE_W,
+      y: portDotY(baseY, i),
+    }));
     return { ins, outs };
   };
 
@@ -363,7 +385,7 @@ export function Canvas({
               const pos = getNodePos(n.id);
               return (
                 <g key={n.id} transform={`translate(${pos.x},${pos.y})`}>
-                  <foreignObject width={NODE_W} height={Math.max(80, 56 + Math.max(def.inputs.length, def.outputs.length) * 22 + 16)}>
+                  <foreignObject width={NODE_W} height={nodeHeight(def.inputs.length + def.outputs.length)}>
                     <div
                       onMouseDown={(e) => onNodeMouseDown(e, n.id)}
                       onClick={(e) => { e.stopPropagation(); setSelectedId(n.id); }}
