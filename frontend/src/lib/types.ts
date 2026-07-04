@@ -1,0 +1,55 @@
+export interface PortSpec {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'any';
+  description?: string;
+  required?: boolean;
+}
+
+export interface NodeDefinition {
+  type: string;
+  name: string;
+  category: 'trigger' | 'ai' | 'knowledge' | 'external' | 'human';
+  description: string;
+  icon: string;
+  color: string;
+  inputs: PortSpec[];
+  outputs: PortSpec[];
+  config_schema: Record<string, unknown>;
+}
+
+export interface CanvasNode {
+  id: string;
+  type: string;
+  config?: Record<string, unknown>;
+  meta?: { title?: string; description?: string; x?: number; y?: number };
+}
+
+export interface CanvasEdge {
+  id?: string;
+  source: string;
+  target: string;
+  sourceHandle?: string;
+  targetHandle?: string;
+}
+
+export interface WorkflowGraph {
+  nodes: CanvasNode[];
+  edges: CanvasEdge[];
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  description: string;
+  graph: WorkflowGraph;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface RunResult {
+  run_id: string;
+  status: 'running' | 'succeeded' | 'failed';
+  outputs: Record<string, Record<string, unknown>>;
+  logs: Array<{ node: string; type: string; ok: boolean; ms?: number; error?: string; ts: number }>;
+  error?: string;
+}

@@ -1,0 +1,29 @@
+# AWE 后端依赖（核心最小集）
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.5
+python-multipart>=0.0.9
+httpx>=0.26
+langgraph>=0.2
+langchain-core>=0.3
+litellm>=1.40
+chromadb>=0.4
+pydantic-settings>=2.1
+
+# 桌面端打包
+pywebview>=5.0
+pyinstaller>=6.0
+
+# 浏览器自动下载
+pyppeteer>=2.0
+
+# 调度
+apscheduler>=3.10
+
+# RPA（按需安装，体积大）
+# DrissionPage>=4.0
+# pywinauto>=0.6
+# PyAutoGUI>=0.9
+
+# 开发
+pytest>=8.0

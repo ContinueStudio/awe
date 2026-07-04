@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .awe-btn-primary {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand-600 text-white text-[12px] font-medium hover:bg-brand-700 active:bg-brand-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors;
+  }
+  .awe-btn-secondary {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-white border border-slate-200 text-slate-700 text-[12px] font-medium hover:bg-slate-50 hover:border-slate-300 transition-colors;
+  }
+  .awe-icon-btn {
+    @apply w-7 h-7 inline-flex items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors;
+  }
+}

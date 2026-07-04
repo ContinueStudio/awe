@@ -1,0 +1,47 @@
+# AWE .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+backend/.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+.npm/
+.eslintcache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs / runtime
+data/awe.db
+data/awe.db-shm
+data/awe.db-wal
+data/logs/
+*.log
+
+# Env
+.env
+.env.local
+
+# OS
+desktop/build/
+desktop/dist/
+*.spec
+
+# Temp
+*.tmp
+*.bak
