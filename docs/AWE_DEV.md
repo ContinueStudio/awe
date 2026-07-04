@@ -7,6 +7,32 @@
 
 ## 1. 当前进度 (v0.2.9 - 2026-07-05 07:45)
 
+### 1.0 今日进展 (2026-07-05 08:10)
+
+**【本轮】v0.2.9-b：一键启动脚本（参照 lawe）**
+- 🐛 **修复**：原 `scripts/start.bat` 用 `start cmd /k` 后台开窗口，后端启动失败时用户看不到错误信息
+- 🎨 **新增**：
+  - [start.py](file:///D:/AWE/start.py)：参照 lawe 实现的 Python 启动器
+    - **杀旧进程**：`netstat -ano` + `taskkill` 清理占用 8765/5173 的残留进程（Vite/uvicorn 退出异常时常留尸）
+    - **前置检查**：venv 存在 / dist 已构建 / node_modules 已安装
+    - **生产模式（默认）**：只启动后端 8765，由 FastAPI 自动 serve `frontend/dist`（无需 Vite）
+    - **--dev 模式**：额外启动 Vite dev 5173（带 HMR，API 代理到 8765）
+    - **就绪等待**：HTTP 轮询 `/api/health` + Vite `/` 直到就绪或超时
+    - **日志落地**：`data/logs/{backend,frontend}.log` 完整保存子进程输出
+    - **优雅退出**：Ctrl+C 自动 terminate 所有子进程（5s 兜底 kill）
+    - **UTF-8 兜底**：`sys.stdout.reconfigure(encoding='utf-8')` + `PYTHONUTF8=1`，避免 GBK 控制台打 `✓`/`✗` 报错
+  - [start.bat](file:///D:/AWE/start.bat)：Windows 入口，调用 `start.py`
+  - [stop.bat](file:///D:/AWE/stop.bat)：一键停止（杀 8765/5173 端口占用）
+  - 删除旧的 `scripts/start.bat`（后台窗口模式） 和 `scripts/start.sh`（Linux 模式）
+- ✅ **验证**：
+  - `start.py --no-browser` 启动后端 → `/api/health` 返回 200 `{"ok":true,"version":"0.1.0"}` → `/` 返回 200 + index.html
+  - `start.py --help` 正常打印（修掉 docstring 中 `\A` 被当转义的 SyntaxWarning）
+- 🐛 **避坑**：
+  - **Windows 后台窗口脚本静默失败**：`start cmd /k "..."` 把子进程放新窗口，Python/Node 报错信息在用户看不到的窗口里，表面上"启动不了"实际是依赖/导入问题
+  - **Popen text=True 默认系统编码**：`encoding='utf-8', errors='replace'` 必须显式声明，否则子进程中文输出会抛 `UnicodeDecodeError`
+  - **Vite 残留进程**：按 Ctrl+C 关闭 cmd 后 Vite node.exe 不一定会退出，下次启动会端口冲突；启动前 `taskkill` 是最稳的
+  - **Python docstring 中的 `\X` 序列**：会被解析为转义，字符串前缀加 `r` 即可
+
 ### 1.0 今日进展 (2026-07-05 07:45)
 
 **【本轮】v0.2.9：lawe 风格精修（去掉 +/- 缩放按钮、logo 改字母）**
