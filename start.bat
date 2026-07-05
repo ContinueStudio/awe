@@ -12,13 +12,15 @@ set "PY="
 if exist "backend\venv\Scripts\python.exe" set "PY=backend\venv\Scripts\python.exe"
 
 if defined PY (
-  "%PY%" start.py %*
+  REM 默认走桌面窗口模式（--window），不再弹浏览器
+  REM 如需调试前端 HMR，手动加 --dev 即可
+  "%PY%" start.py --window %*
 ) else (
   where py >nul 2>nul
   if %ERRORLEVEL%==0 (
-    py start.py %*
+    py start.py --window %*
   ) else (
-    python start.py %*
+    python start.py --window %*
   )
 )
 
