@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import {
-  Plus, Search, MoreVertical, Pencil, Copy, Trash2, Download, Play, Loader2, Share2, ChevronLeft, ChevronRight, FilePlus2,
+  Plus, Search, MoreVertical, Pencil, Copy, Trash2, Download, Play, Loader2, Share2, ChevronLeft, ChevronRight, FilePlus2, Square, SquareCheckBig, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -61,6 +61,8 @@ export function WorkflowsPage({
   const [runningIds, setRunningIds] = useState<Record<string, boolean>>({});
   const [page, setPage] = useState(0);
   const [creating, setCreating] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -95,6 +97,45 @@ export function WorkflowsPage({
     setMenu(null);
     const d = await api.listWorkflows();
     setWorkflows(d.workflows as any);
+  };
+
+  const batchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`确定删除选中的 ${selectedIds.size} 个工作流？此操作不可恢复。`)) return;
+    setDeleting(true);
+    try {
+      await api.batchDeleteWorkflows(Array.from(selectedIds));
+      setSelectedIds(new Set());
+      const d = await api.listWorkflows();
+      setWorkflows(d.workflows as any);
+    } catch (e) {
+      console.error('batch delete failed', e);
+      alert('批量删除失败：' + (e as Error).message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const pageIds = pageItems.map((w) => w.id);
+    const allSelected = pageIds.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        pageIds.forEach((id) => next.delete(id));
+      } else {
+        pageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
   };
 
   const duplicateOne = async (id: string) => {
@@ -191,8 +232,37 @@ export function WorkflowsPage({
           <h1 style={{ fontSize: 16, fontWeight: 600, color: '#020617', lineHeight: 1.2 }}>工作流列表</h1>
           <p style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
             共 <span style={{ color: '#020617', fontWeight: 500 }}>{workflows.length}</span> 个工作流
+            {selectedIds.size > 0 && <span style={{ color: 'var(--primary, #3b82f6)', fontWeight: 500 }}> · 已选 {selectedIds.size}</span>}
           </p>
         </div>
+
+        {/* 批量操作栏 */}
+        {selectedIds.size > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 16 }}>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="awe-icon-btn"
+              style={{ height: 28, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 10px' }}
+            >
+              <X size={12} />
+              取消选择
+            </button>
+            <button
+              onClick={batchDelete}
+              disabled={deleting}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '0 12px', height: 28, borderRadius: 6,
+                background: '#dc2626', color: '#ffffff', border: 'none',
+                fontSize: 12, fontWeight: 500, cursor: deleting ? 'wait' : 'pointer',
+                opacity: deleting ? 0.6 : 1,
+              }}
+            >
+              {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+              删除选中 ({selectedIds.size})
+            </button>
+          </div>
+        )}
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ position: 'relative' }}>
@@ -212,7 +282,7 @@ export function WorkflowsPage({
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               padding: '0 12px', height: 32, borderRadius: 6,
-              background: '#0f172a', color: '#ffffff', border: 'none',
+              background: 'var(--primary, #3b82f6)', color: '#ffffff', border: 'none',
               fontSize: 13, fontWeight: 500, cursor: creating ? 'wait' : 'pointer',
               opacity: creating ? 0.5 : 1,
             }}
@@ -242,7 +312,7 @@ export function WorkflowsPage({
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'minmax(280px, 1fr) 120px 180px 200px',
+                  gridTemplateColumns: '40px minmax(280px, 1fr) 120px 180px 200px',
                   alignItems: 'center',
                   height: 36,
                   padding: '0 16px',
@@ -255,6 +325,13 @@ export function WorkflowsPage({
                   letterSpacing: 0.5,
                 }}
               >
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <CheckAllBox
+                    allSelected={pageItems.length > 0 && pageItems.every((w) => selectedIds.has(w.id))}
+                    someSelected={pageItems.some((w) => selectedIds.has(w.id)) && !pageItems.every((w) => selectedIds.has(w.id))}
+                    onToggle={toggleSelectAll}
+                  />
+                </div>
                 <div>名称</div>
                 <div>状态</div>
                 <div>更新时间</div>
@@ -270,6 +347,8 @@ export function WorkflowsPage({
                   <WfRow
                     key={wf.id}
                     wf={wf}
+                    selected={selectedIds.has(wf.id)}
+                    onToggleSelect={() => toggleSelect(wf.id)}
                     onOpen={() => onOpen(wf)}
                     onShowLogs={(e) => { e.stopPropagation(); e.preventDefault(); setLogWf(wf); }}
                     onRun={(e) => { e.stopPropagation(); e.preventDefault(); runFromHome(wf.id); }}
@@ -376,7 +455,7 @@ export function WorkflowsPage({
               </button>
               <button
                 onClick={commitRename}
-                style={{ padding: '0 12px', height: 32, borderRadius: 6, background: '#0f172a', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+                style={{ padding: '0 12px', height: 32, borderRadius: 6, background: 'var(--primary, #3b82f6)', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
               >
                 确定
               </button>
@@ -399,9 +478,11 @@ export function WorkflowsPage({
 
 /* -------------------- 列表行 -------------------- */
 function WfRow({
-  wf, onOpen, onShowLogs, onRun, onShare, isRunning, onMenu,
+  wf, selected, onToggleSelect, onOpen, onShowLogs, onRun, onShare, isRunning, onMenu,
 }: {
   wf: Workflow;
+  selected: boolean;
+  onToggleSelect: () => void;
   onOpen: () => void;
   onShowLogs: (e: React.MouseEvent) => void;
   onRun: (e: React.MouseEvent) => void;
@@ -416,17 +497,29 @@ function WfRow({
       onContextMenu={(e) => { e.preventDefault(); onMenu(e); }}
       style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(280px, 1fr) 120px 180px 200px',
+        gridTemplateColumns: '40px minmax(280px, 1fr) 120px 180px 200px',
         alignItems: 'center',
         height: 48,
         padding: '0 16px',
         borderBottom: '1px solid #f1f5f9',
         cursor: 'pointer',
         transition: 'background 0.12s',
+        background: selected ? 'rgba(59, 130, 246, 0.06)' : 'transparent',
       }}
-      onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = '#f8fafc')}
-      onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'transparent')}
+      onMouseEnter={(e) => {
+        if (selected) return;
+        (e.currentTarget as HTMLDivElement).style.background = '#f8fafc';
+      }}
+      onMouseLeave={(e) => {
+        if (selected) return;
+        (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+      }}
     >
+      {/* 复选框列 */}
+      <div style={{ display: 'flex', justifyContent: 'center' }} onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}>
+        <CheckBox checked={selected} />
+      </div>
+
       {/* 名称列：状态点 + 名称 + 节点数 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <StatusDot s={wf.last_status} />
@@ -484,6 +577,57 @@ function WfRow({
   );
 }
 
+function CheckBox({ checked }: { checked: boolean }) {
+  return (
+    <span
+      className="awe-checkbox"
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 18, height: 18, borderRadius: 4,
+        border: checked ? '2px solid var(--primary, #3b82f6)' : '2px solid #cbd5e1',
+        background: checked ? 'var(--primary, #3b82f6)' : '#ffffff',
+        cursor: 'pointer', transition: 'all 0.15s',
+        color: '#ffffff',
+      }}
+    >
+      {checked && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
+function CheckAllBox({
+  allSelected, someSelected, onToggle,
+}: { allSelected: boolean; someSelected: boolean; onToggle: () => void }) {
+  return (
+    <span
+      className="awe-checkbox"
+      onClick={onToggle}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 18, height: 18, borderRadius: 4,
+        border: allSelected ? '2px solid var(--primary, #3b82f6)' : someSelected ? '2px solid var(--primary, #3b82f6)' : '2px solid #cbd5e1',
+        background: allSelected ? 'var(--primary, #3b82f6)' : someSelected ? 'var(--primary, #3b82f6)' : '#ffffff',
+        cursor: 'pointer', transition: 'all 0.15s',
+        color: '#ffffff',
+      }}
+    >
+      {allSelected ? (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : someSelected ? (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      ) : null}
+    </span>
+  );
+}
+
 function MenuItem({ icon: Icon, label, onClick, danger }: { icon: any; label: string; onClick: () => void; danger?: boolean }) {
   return (
     <button
@@ -534,7 +678,7 @@ function EmptyState({ onCreate, creating }: { onCreate: () => void; creating: bo
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           padding: '0 14px', height: 32, borderRadius: 6,
-          background: '#0f172a', color: '#ffffff', border: 'none',
+          background: 'var(--primary, #3b82f6)', color: '#ffffff', border: 'none',
           fontSize: 13, fontWeight: 500, cursor: creating ? 'wait' : 'pointer',
           opacity: creating ? 0.5 : 1,
         }}

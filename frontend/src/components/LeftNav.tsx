@@ -53,7 +53,7 @@ export function LeftNav({ active, onChange, health }: Props) {
           <div
             style={{
               width: 32, height: 32, borderRadius: 6,
-              background: '#0f172a',
+              background: 'var(--primary, #3b82f6)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontWeight: 700, color: '#ffffff', fontSize: 14,
             }}

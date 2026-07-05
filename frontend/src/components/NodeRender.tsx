@@ -14,15 +14,15 @@ import { Copy, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CanvasNode, NodeDefinition } from '@/lib/types';
 
-// 节点类型 → 颜色（保持 6 类行业色，但 slimmer 一些，整体去紫去渐变）
+// 节点类型 → 颜色（现代轻盈配色，-500 色阶）
 const COLOR_BAR: Record<string, string> = {
-  emerald: '#16a34a', // green-600
-  blue:    '#2563eb', // blue-600
-  amber:   '#d97706', // amber-600
-  sky:     '#0284c7', // sky-600
-  rose:    '#dc2626', // red-600
-  slate:   '#0f172a', // slate-900
-  violet:  '#7c3aed', // 保留（但不使用 gradient）
+  emerald: '#10b981', // emerald-500
+  blue:    '#3b82f6', // blue-500
+  amber:   '#f59e0b', // amber-500
+  sky:     '#0ea5e9', // sky-500
+  rose:    '#f43f5e', // rose-500
+  slate:   '#475569', // slate-600
+  violet:  '#8b5cf6', // violet-500
 };
 
 interface Props {
@@ -71,7 +71,7 @@ export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, on
           // v0.3.6 修复：把顶部类型色相渐变通过 CSS 变量 --node-color 注入，
           // .node-card 类的 background 会用 var(--node-color, #f1f5f9) 渲染。
           // 避免内联 background 覆盖 .node-card 的 box-shadow 渲染层级导致 4 角黑点。
-          '--node-color': `${color}26`, // 类型色 + 15% alpha（与 v0.3.4 风格一致）
+          '--node-color': `${color}20`, // 类型色 + 12% alpha（更轻盈的渐变过渡）
         } as React.CSSProperties
       }
       data-node-id={node.id}

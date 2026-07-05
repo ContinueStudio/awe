@@ -136,7 +136,7 @@ function renderField(
           onClick={() => onChange(!value)}
           style={{
             width: 32, height: 18,
-            background: value ? '#0f172a' : '#cbd5e1',
+            background: value ? 'var(--primary, #3b82f6)' : '#cbd5e1',
             borderRadius: 9, position: 'relative',
             transition: 'background 0.15s',
             cursor: 'pointer', border: 'none', padding: 0,

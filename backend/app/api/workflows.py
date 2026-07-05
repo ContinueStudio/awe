@@ -35,6 +35,10 @@ class RunStart(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
 
 
+class BatchDeleteRequest(BaseModel):
+    ids: List[str]
+
+
 class HumanDecision(BaseModel):
     decision: Any
 
@@ -88,6 +92,16 @@ def delete_workflow(wid: str) -> Dict[str, Any]:
     if not db.delete_workflow(wid):
         raise HTTPException(404, "workflow not found")
     return {"ok": True}
+
+
+@router.post("/workflows/batch-delete")
+def batch_delete_workflows(body: BatchDeleteRequest) -> Dict[str, Any]:
+    """批量删除工作流。"""
+    deleted = 0
+    for wid in body.ids:
+        if db.delete_workflow(wid):
+            deleted += 1
+    return {"ok": True, "deleted": deleted, "total": len(body.ids)}
 
 
 @router.post("/workflows/validate")

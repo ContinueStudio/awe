@@ -47,4 +47,9 @@ export const api = {
       `/runs?workflow_id=${workflowId ?? ''}&limit=${limit}`,
     ),
   getRun: (runId: string) => http<RunRecord>(`/runs/${runId}`),
+  batchDeleteWorkflows: (ids: string[]) =>
+    http<{ ok: boolean; deleted: number; total: number }>('/workflows/batch-delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }),
 };

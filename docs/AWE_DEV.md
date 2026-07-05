@@ -1,13 +1,40 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.18**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.19**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.3.6 - 2026-07-06 01:30)
+## 1. 当前进度 (v0.3.7 - 2026-07-06)
 
-### 1.0 今日进展 (2026-07-06 01:30)
+### 1.0 今日进展 (2026-07-06 19:30)
+
+**【本轮】v0.3.7：工作流列表批量选择/删除 + 画布 Shift 框选（PRD v2.19）**
+
+- ✅ **功能 1 — 工作流列表批量选择与删除**：
+  - `HomePage.tsx`：表头新增全选复选框（全选/半选/未选三态），每行新增复选框
+  - 选中后顶部浮现批量操作栏（"取消选择" + "删除选中(N)"红色按钮）
+  - 选中行高亮为蓝色浅底（`rgba(59,130,246,0.06)`）
+  - 新增自定义 `CheckBox` / `CheckAllBox` 组件（SVG 勾选图标，18x18px，4px 圆角）
+  - 后端新增 `POST /api/workflows/batch-delete` 端点，接受 `{ids: [...]}` 批量删除
+  - 前端 `api.ts` 新增 `batchDeleteWorkflows(ids)` 方法
+
+- ✅ **功能 2 — 画布 Shift 拖动框选**：
+  - `Canvas.tsx`：`selectedId` 单值升级为 `selectedIds: Set<string>` 多选
+  - 节点点击：Shift + 点击 → 多选切换，普通点击 → 单选
+  - 画布空白区：Shift + 拖动 → 框选模式（半透明蓝色虚线矩形），松手后选中矩形内节点
+  - 普通拖动 → 平移画布（保持不变）
+  - Delete/Backspace 删除所有选中节点及其连线
+  - Add `boxSelect` state 驱动框选矩形渲染
+
+- 📋 **版本号** v0.3.6 → v0.3.7
+
+- 📋 **PRD 同步**：升级到 v2.19（`AWE_PRD.md` §1.8 增量说明）
+
+- 🐛 **避坑**（v0.3.7 沉淀）：
+  - Canvas 框选时需在 mousemove 中实时更新矩形终点，mouseup 时计算交集并清除框选 state
+  - `selectedIds` 从 `string | null` 升级为 `Set<string>` 后，需全面替换所有引用（包括 onClick 回调中的行内 setter）
+  - 批量删除按钮的 `deleting` loading 状态可防止用户重复点击
 
 **【本轮】v0.3.6：节点 4 角黑点彻底根因修复 + 顶栏 lawe 风格化 + BottomToolbar flex 居中（PRD v2.18）**
 

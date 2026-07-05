@@ -1,13 +1,13 @@
-# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.18
+# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.19
 
 ## 1. 文档信息
 * **项目名称**：智能体工作流引擎 (Agentic Workflow Engine - AWE)
-* **文档版本**：v2.18 (节点 4 角黑点彻底根因修复 + 顶栏 lawe 风格化 + BottomToolbar flex 居中)
-* **前序版本**：v2.17 (Canvas 外层 shadow-md 修复 + 缩放 fixed 化 + ZoomControls)
+* **文档版本**：v2.19 (工作流列表批量选择/删除 + 画布 Shift 框选)
+* **前序版本**：v2.18 (节点 4 角黑点彻底根因修复 + 顶栏 lawe 风格化 + BottomToolbar flex 居中)
 * **主要负责人**：Gu Yu (资深全栈架构师)
-* **发布时间**：2026-07-05
+* **发布时间**：2026-07-06
 * **文档状态**：已锁定/已落地
-* **配套代码版本**：frontend v0.3.6
+* **配套代码版本**：frontend v0.3.7
 
 ---
 
@@ -440,6 +440,50 @@
 * **`box-shadow: 0 0 0 Npx` 即使是 N=1 也会在圆角外侧绘制"硬边"**：选用浅色 4% 描边或纯阴影，不要用纯黑实心 spread，否则 4 角变方
 * **CSS 变量比内联 background 更适合做"主题相关样式"**：避免内联样式覆盖类的 box-shadow 渲染层级
 * **`transform: translateX(-50%)` 在 fixed/absolute 元素上建立新的 containing block**：在嵌套 transform / will-change 场景下可能让 fixed/absolute 偏移，改用 flex 容器居中更稳健
+
+---
+
+## 1.8 v2.19 增量变更（相对 v2.18）
+- **版本号**：PRD v2.19 / frontend v0.3.7 / 2026-07-06
+- **说明**：基于用户反馈，引入工作流列表批量操作和画布框选能力，提升多工作流管理和多节点操作的效率。
+
+### 1.8.1 功能 A — 工作流列表批量选择与删除
+* **变更文件**：`src/pages/HomePage.tsx`、`src/lib/api.ts`、`backend/app/api/workflows.py`
+* **操作细节**：
+  - 表头新增全选复选框（三态：全选 ✓ / 半选 — / 未选 □），18x18px 4px 圆角
+  - 每行新增复选框列（grid 从 4 列扩展为 5 列：40px + 名称 + 状态 + 时间 + 操作）
+  - 选中行高亮为浅蓝底（`rgba(59,130,246,0.06)`），hover 不再覆盖选中样式
+  - 选中后顶部浮现批量操作栏："取消选择"按钮 + "删除选中(N)"红色删除按钮（loading 态防止重复点击）
+  - 后端新增 `POST /api/workflows/batch-delete` 端点，接受 `{"ids": [...]}` 批量执行级联删除
+* **设计原则**：表格式交互，不引入拖选列；批量删除前二次确认
+
+### 1.8.2 功能 B — 画布 Shift 拖动框选
+* **变更文件**：`src/components/Canvas.tsx`
+* **操作细节**：
+  - 节点点击：Shift + 点击 → 多选切换（toggle）；普通点击 → 单选
+  - 画布空白区：Shift + 拖动 → 框选模式（半透明蓝色虚线矩形，strokeDasharray="4 3"），鼠标松开后框内所有节点被选中
+  - 普通拖动（不按 Shift） → 平移画布（保持原有逻辑）
+  - Delete/Backspace → 删除所有选中节点及其连线
+* **实现**：
+  - 内部状态 `selectedId: string|null` 升级为 `selectedIds: Set<string>`，支持多节点选中
+  - 新增 `boxSelect` state 在 mousemove 中实时更新矩形终点，mouseup 时计算交集
+  - 框选矩形使用 `screenToWorld` 坐标转换，跟随缩放和平移
+* **文件变更清单**：
+  - `src/components/Canvas.tsx`：23 处引用升级为 Set<string>，新增 boxSelect/框选逻辑
+  - `src/pages/HomePage.tsx`：新增 CheckBox/CheckAllBox 组件，批量操作栏，复选框列
+  - `src/lib/api.ts`：新增 batchDeleteWorkflows 方法
+  - `backend/app/api/workflows.py`：新增 POST /api/workflows/batch-delete 端点
+
+### 1.8.3 验证与测试
+* ✅ TypeScript 编译零错误（tsc --noEmit）
+* ✅ Vite 生产构建通过（1592 modules / 246 kB gzip 74 kB）
+* ✅ 点击节点 → 单选 + 可拖拽
+* ✅ Shift+点击节点 → 多选切换
+* ✅ Shift+画布拖动 → 框选矩形出现 + 松手后节点被选中
+* ✅ 普通画布拖动 → 平移画布
+* ✅ Delete 删除选中节点 + 级联清理连线
+* ✅ 批量删除 API → 级联清理 runs/checkpoints/schedules
+* ✅ 批量删除按钮 → loading 态防重复点击
 
 ---
 

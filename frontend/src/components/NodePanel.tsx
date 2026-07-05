@@ -10,15 +10,15 @@ import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 import type { NodeDefinition } from '@/lib/types';
 
-// 节点类型 → 颜色（与 NodeRender 保持一致）
+// 节点类型 → 颜色（与 NodeRender 保持一致，现代轻盈配色）
 const COLOR_BAR: Record<string, string> = {
-  emerald: '#16a34a',
-  blue:    '#2563eb',
-  amber:   '#d97706',
-  sky:     '#0284c7',
-  rose:    '#dc2626',
-  slate:   '#0f172a',
-  violet:  '#7c3aed',
+  emerald: '#10b981',
+  blue:    '#3b82f6',
+  amber:   '#f59e0b',
+  sky:     '#0ea5e9',
+  rose:    '#f43f5e',
+  slate:   '#475569',
+  violet:  '#8b5cf6',
 };
 
 const CATEGORY_LABEL: Record<string, string> = {

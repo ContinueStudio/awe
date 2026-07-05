@@ -172,7 +172,7 @@ export function BottomToolbar({
               title={t.title}
               style={{
                 ...SMALL_BTN,
-                background: isActive ? '#0f172a' : 'transparent',
+                background: isActive ? 'var(--primary, #3b82f6)' : 'transparent',
                 color: isActive ? '#ffffff' : '#475569',
               }}
               onClick={() => setActiveTool((cur) => (cur === t.id ? null : t.id))}
@@ -190,21 +190,21 @@ export function BottomToolbar({
 
         <div style={DIVIDER} />
 
-        {/* 大图标按钮：添加节点（黑底白字） */}
+        {/* 大图标按钮：添加节点（品牌蓝底白字） */}
         <button
           onClick={onToggleNodePanel}
           title="添加节点"
           style={{
             ...BIG_BTN,
-            background: showNodePanel ? '#020617' : '#0f172a',
+            background: showNodePanel ? 'var(--primary-hover, #2563eb)' : 'var(--primary, #3b82f6)',
             color: '#ffffff',
-            boxShadow: '0 2px 6px rgba(15, 23, 42, 0.25)',
+            boxShadow: '0 2px 6px rgba(59, 130, 246, 0.25)',
           }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = '#020617';
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary-hover, #2563eb)';
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = showNodePanel ? '#020617' : '#0f172a';
+            (e.currentTarget as HTMLButtonElement).style.background = showNodePanel ? 'var(--primary-hover, #2563eb)' : 'var(--primary, #3b82f6)';
           }}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -217,26 +217,26 @@ export function BottomToolbar({
 
       {/* ===== 右工具栏：1 大图标（运行） ===== */}
       <div style={{ ...TOOLBAR_BASE, paddingLeft: 6, paddingRight: 6 }}>
-        {/* 大图标按钮：运行（黑底白字 + 三角播放图标） */}
+        {/* 大图标按钮：运行（品牌蓝底白字 + 三角播放图标） */}
         <button
           onClick={onTestRun}
           disabled={isRunning}
           title={isRunning ? '运行中…' : '运行'}
           style={{
             ...BIG_BTN,
-            background: isRunning ? '#334155' : '#0f172a',
+            background: isRunning ? '#334155' : 'var(--primary, #3b82f6)',
             color: '#ffffff',
             opacity: isRunning ? 0.85 : 1,
             cursor: isRunning ? 'wait' : 'pointer',
-            boxShadow: '0 2px 6px rgba(15, 23, 42, 0.25)',
+            boxShadow: '0 2px 6px rgba(59, 130, 246, 0.25)',
           }}
           onMouseEnter={(e) => {
             if (isRunning) return;
-            (e.currentTarget as HTMLButtonElement).style.background = '#020617';
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary-hover, #2563eb)';
           }}
           onMouseLeave={(e) => {
             if (isRunning) return;
-            (e.currentTarget as HTMLButtonElement).style.background = '#0f172a';
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary, #3b82f6)';
           }}
         >
           {isRunning ? (

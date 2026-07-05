@@ -47,10 +47,12 @@ export function Canvas({
   onViewChange,
 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [draftEdge, setDraftEdge] = useState<{ fromNode: string; x: number; y: number } | null>(null);
   const [dragNode, setDragNode] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const [panning, setPanning] = useState<{ x: number; y: number } | null>(null);
+  // 框选状态
+  const [boxSelect, setBoxSelect] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
 
   const nodeDefs = useMemo(() => Object.fromEntries(nodes.map((n) => [n.type, n])), [nodes]);
 
@@ -90,17 +92,32 @@ export function Canvas({
   // ---- 节点拖拽 ----
   const onNodeMouseDown = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    setSelectedId(id);
+    if (e.shiftKey) {
+      // Shift + 点击：多选切换
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+      });
+    } else {
+      setSelectedIds(new Set([id]));
+    }
     onSelectNode(id);
     const pos = getNodePos(id);
     const w = screenToWorld(e.clientX, e.clientY);
     setDragNode({ id, offsetX: w.x - pos.x, offsetY: w.y - pos.y });
   };
 
-  // ---- 画布平移 ----
+  // ---- 画布平移 / 框选 ----
   const onCanvasMouseDown = (e: React.MouseEvent) => {
     if (e.target !== svgRef.current) return;
-    setSelectedId(null);
+    if (e.shiftKey) {
+      // Shift + 画布拖动：框选模式
+      const w = screenToWorld(e.clientX, e.clientY);
+      setBoxSelect({ x1: w.x, y1: w.y, x2: w.x, y2: w.y });
+      return;
+    }
+    setSelectedIds(new Set());
     onSelectNode(null);
     setPanning({ x: e.clientX - view.x, y: e.clientY - view.y });
   };
@@ -110,6 +127,9 @@ export function Canvas({
       if (dragNode) {
         const w = screenToWorld(e.clientX, e.clientY);
         updateNodeMeta(dragNode.id, { x: w.x - dragNode.offsetX, y: w.y - dragNode.offsetY });
+      } else if (boxSelect) {
+        const w = screenToWorld(e.clientX, e.clientY);
+        setBoxSelect((bs) => bs ? { ...bs, x2: w.x, y2: w.y } : null);
       } else if (panning) {
         onViewChange({ ...view, x: e.clientX - panning.x, y: e.clientY - panning.y });
       } else if (draftEdge) {
@@ -120,6 +140,26 @@ export function Canvas({
     const onUp = () => {
       setDragNode(null);
       setPanning(null);
+      // 框选结束：计算哪些节点在矩形内
+      if (boxSelect) {
+        setBoxSelect((bs) => {
+          if (!bs) return null;
+          const x1 = Math.min(bs.x1, bs.x2);
+          const y1 = Math.min(bs.y1, bs.y2);
+          const x2 = Math.max(bs.x1, bs.x2);
+          const y2 = Math.max(bs.y1, bs.y2);
+          // 找出矩形内的节点
+          const insideIds = graph.nodes.filter((n) => {
+            const pos = getNodePos(n.id);
+            const h = heightOf(n.id, (nodeDefs[n.type]?.inputs?.length || 0) + (nodeDefs[n.type]?.outputs?.length || 0));
+            return pos.x + NODE_W > x1 && pos.x < x2 && pos.y + h > y1 && pos.y < y2;
+          }).map((n) => n.id);
+          if (insideIds.length > 0) {
+            setSelectedIds(new Set(insideIds));
+          }
+          return null;
+        });
+      }
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -127,7 +167,7 @@ export function Canvas({
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [dragNode, panning, draftEdge, screenToWorld, updateNodeMeta, view, onViewChange]);
+  }, [dragNode, boxSelect, panning, draftEdge, screenToWorld, updateNodeMeta, view, onViewChange, graph.nodes, getNodePos, nodeDefs]);
 
   // ---- 缩放 ----
   const onWheel = (e: React.WheelEvent) => {
@@ -170,18 +210,19 @@ export function Canvas({
 
   // ---- 删除 ----
   const deleteSelected = useCallback(() => {
-    if (!selectedId) return;
+    if (selectedIds.size === 0) return;
+    const idSet = new Set(selectedIds);
     onChange({
-      nodes: graph.nodes.filter((n) => n.id !== selectedId),
-      edges: graph.edges.filter((e) => e.source !== selectedId && e.target !== selectedId),
+      nodes: graph.nodes.filter((n) => !idSet.has(n.id)),
+      edges: graph.edges.filter((e) => !idSet.has(e.source) && !idSet.has(e.target)),
     });
-    setSelectedId(null);
+    setSelectedIds(new Set());
     onSelectNode(null);
-  }, [selectedId, graph, onChange, onSelectNode]);
+  }, [selectedIds, graph, onChange, onSelectNode]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
         const target = e.target as HTMLElement | null;
         if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
         deleteSelected();
@@ -189,7 +230,7 @@ export function Canvas({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [deleteSelected, selectedId]);
+  }, [deleteSelected, selectedIds]);
 
   // ---- 保存 ----
   const save = async () => {
@@ -292,6 +333,25 @@ export function Canvas({
             />
           )}
 
+          {/* 框选矩形 */}
+          {boxSelect && (() => {
+            const bx = Math.min(boxSelect.x1, boxSelect.x2);
+            const by = Math.min(boxSelect.y1, boxSelect.y2);
+            const bw = Math.abs(boxSelect.x2 - boxSelect.x1);
+            const bh = Math.abs(boxSelect.y2 - boxSelect.y1);
+            if (bw < 2 && bh < 2) return null;
+            return (
+              <rect
+                x={bx} y={by} width={bw} height={bh}
+                fill="rgba(59, 130, 246, 0.08)"
+                stroke="var(--primary, #3b82f6)"
+                strokeWidth={1}
+                strokeDasharray="4 3"
+                rx={2}
+              />
+            );
+          })()}
+
           {/* 节点 */}
           {graph.nodes.map((n) => {
             const def = nodeDefs[n.type];
@@ -309,14 +369,14 @@ export function Canvas({
                       选中态视觉完全交给 NodeRender 内部 .node-card.is-selected 处理 */}
                   <div
                     onMouseDown={(e) => onNodeMouseDown(e, n.id)}
-                    onClick={(e) => { e.stopPropagation(); setSelectedId(n.id); onSelectNode(n.id); }}
+                    onClick={(e) => { e.stopPropagation(); setSelectedIds(new Set([n.id])); onSelectNode(n.id); }}
                     style={{ width: '100%' }}
                     data-node-height={h}
                   >
                     <NodeRender
                       node={n}
                       def={def}
-                      selected={selectedId === n.id}
+                      selected={selectedIds.has(n.id)}
                       onPointerDown={() => {}}
                       onStartEdge={(e) => startEdge(e, n.id)}
                       onCompleteEdge={(e) => completeEdge(e, n.id)}

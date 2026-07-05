@@ -58,10 +58,12 @@
   --danger:       #ef4444;      /* text-red-500 */
   --danger-hover: #dc2626;      /* bg-red-600 */
 
-  /* 主操作（黑底白字） */
-  --primary:      #0f172a;      /* bg-slate-900 */
-  --primary-hover:#1e293b;      /* bg-slate-800 */
+  /* 主操作（品牌蓝 Electric Blue） */
+  --primary:      #3b82f6;      /* bg-blue-500 */
+  --primary-hover:#2563eb;      /* bg-blue-600 */
   --primary-fg:   #ffffff;
+  --primary-light:#eff6ff;      /* bg-blue-50 */
+  --primary-ring: rgba(59, 130, 246, 0.25);
 
   /* 阴影（极轻，shadcn 风格） */
   --shadow-sm:    0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -126,12 +128,12 @@
     inset 0 1px 1px rgba(255, 255, 255, 0.8);
 }
 .node-card.is-selected {
-  border-color: #0f172a;            /* 选中态：边框变黑（lawe 风格） */
+  border-color: var(--primary, #3b82f6);            /* 选中态：边框变品牌蓝 */
   /* 关键修复：去掉 `0 0 0 1px #0f172a` 黑色外环——那是 4 角黑点根因。
      改为"双层阴影加深"：外阴影变深 + 内白色高光保留，4 角干净。 */
   box-shadow:
-    0 4px 16px rgba(15, 23, 42, 0.12),
-    0 0 0 1px rgba(15, 23, 42, 0.04),
+    0 4px 16px rgba(59, 130, 246, 0.15),
+    0 0 0 1px rgba(59, 130, 246, 0.08),
     inset 0 1px 1px rgba(255, 255, 255, 0.8);
 }
 
@@ -163,7 +165,7 @@
   transition: stroke 0.15s;
 }
 .connection-path:hover {
-  stroke: #0f172a;
+  stroke: var(--primary, #3b82f6);
   stroke-width: 2;
   cursor: pointer;
 }
@@ -203,8 +205,8 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .awe-input:focus {
-  border-color: var(--text);
-  box-shadow: 0 0 0 1px var(--text);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-ring);
 }
 .awe-input::placeholder { color: var(--text-placeholder); }
 .awe-textarea {
@@ -223,8 +225,8 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .awe-textarea:focus {
-  border-color: var(--text);
-  box-shadow: 0 0 0 1px var(--text);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-ring);
 }
 .awe-code {
   background: #0d1117;

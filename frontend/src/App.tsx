@@ -291,11 +291,11 @@ export default function App() {
 
               <div style={{ width: 1, height: 18, background: '#e2e8f0' }} />
 
-              {/* Logo（黑底白字方块 + 字符 A，对齐 lawe 'L' 风格） */}
+              {/* Logo（品牌蓝底白字方块 + 字符 A） */}
               <div
                 style={{
                   width: 22, height: 22, borderRadius: 5,
-                  background: '#0f172a',
+                  background: 'var(--primary, #3b82f6)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                 }}
@@ -303,7 +303,7 @@ export default function App() {
                 <span style={{ color: '#ffffff', fontSize: 11, fontWeight: 700, letterSpacing: -0.2 }}>A</span>
               </div>
 
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', flexShrink: 0, letterSpacing: 0.2 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary, #3b82f6)', flexShrink: 0, letterSpacing: 0.2 }}>
                 AWE
               </span>
 
@@ -402,9 +402,9 @@ export default function App() {
                   transition: 'border-color 0.15s, color 0.15s, background 0.15s',
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = '#0f172a';
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--primary, #3b82f6)';
                   (e.currentTarget as HTMLButtonElement).style.color = '#020617';
-                  (e.currentTarget as HTMLButtonElement).style.background = '#f8fafc';
+                  (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary-light, #eff6ff)';
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.borderColor = '#e2e8f0';
@@ -416,14 +416,14 @@ export default function App() {
                 版本历史
               </button>
 
-              {/* 发版按钮（v0.3.6：黑底白字 + Rocket 图标，主按钮样式 - lawe 风格） */}
+              {/* 发版按钮（品牌蓝底白字 + Rocket 图标） */}
               <button
                 onClick={handleSave}
                 disabled={isSaving}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,
                   padding: '0 12px', height: 28, borderRadius: 6,
-                  background: '#0f172a', border: '1px solid #0f172a', color: '#ffffff',
+                  background: 'var(--primary, #3b82f6)', border: '1px solid var(--primary, #3b82f6)', color: '#ffffff',
                   fontSize: 12, fontWeight: 600, cursor: isSaving ? 'wait' : 'pointer',
                   opacity: isSaving ? 0.6 : 1,
                   transition: 'background 0.15s, border-color 0.15s',
@@ -432,12 +432,12 @@ export default function App() {
                 title="发版 (Ctrl+S)"
                 onMouseEnter={(e) => {
                   if (isSaving) return;
-                  (e.currentTarget as HTMLButtonElement).style.background = '#020617';
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = '#020617';
+                  (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary-hover, #2563eb)';
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--primary-hover, #2563eb)';
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = '#0f172a';
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = '#0f172a';
+                  (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary, #3b82f6)';
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--primary, #3b82f6)';
                 }}
               >
                 {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Rocket size={13} />}
@@ -586,15 +586,15 @@ function NodeConfigDrawer({
   onRun: () => void;
 }) {
   const fakeNode = { id: node.id, type: node.type, config: node.config || {} } as any;
-  // 颜色（与 NodeRender / NodePanel 保持一致 - shadcn 6 类行业色）
+  // 颜色（与 NodeRender / NodePanel 保持一致 - 现代轻盈配色）
   const COLOR_BAR: Record<string, string> = {
-    emerald: '#16a34a',
-    blue:    '#2563eb',
-    amber:   '#d97706',
-    sky:     '#0284c7',
-    rose:    '#dc2626',
-    slate:   '#0f172a',
-    violet:  '#7c3aed',
+    emerald: '#10b981',
+    blue:    '#3b82f6',
+    amber:   '#f59e0b',
+    sky:     '#0ea5e9',
+    rose:    '#f43f5e',
+    slate:   '#475569',
+    violet:  '#8b5cf6',
   };
   const color = COLOR_BAR[def.color] || COLOR_BAR.slate;
 
