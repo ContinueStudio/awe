@@ -1,11 +1,71 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.16**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.18**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.3.4 - 2026-07-06 00:15)
+## 1. 当前进度 (v0.3.6 - 2026-07-06 01:30)
+
+### 1.0 今日进展 (2026-07-06 01:30)
+
+**【本轮】v0.3.6：节点 4 角黑点彻底根因修复 + 顶栏 lawe 风格化 + BottomToolbar flex 居中（PRD v2.18）**
+
+- 🎨 **重大修复 1 — 节点 4 角黑点彻底根因（v0.3.5 残留 bug）**：
+  - **v0.3.5 误判根因**：以为是 `Canvas.tsx` 外层 div 的 `shadow-md`，去掉后 4 角仍然有"黑点"
+  - **v0.3.6 真正根因**：`.node-card.is-selected` 的 `box-shadow: 0 0 0 1px #0f172a, 0 1px 3px rgba(15, 23, 42, 0.10)`
+  - `0 0 0 1px #0f172a` 是**纯黑实心外环**（spread 1px），紧贴 12px 圆角外侧绘制，4 角最明显（黑色"凸出"圆角外）
+  - **修复方案**：
+    - 去掉 `0 0 0 1px #0f172a` 这个纯黑实心外环
+    - 改为**双层阴影加深**：`0 4px 16px rgba(15,23,42,0.12) + 0 0 0 1px rgba(15,23,42,0.04) + inset 0 1px 1px rgba(255,255,255,0.8)`
+    - 选中态识别度靠 `border-color: #0f172a` 黑边 + 更深的外阴影表达，4 角干净无黑框
+  - **用户原话**："节点选中之后，节点的4个角是黑色的" —— **v0.3.6 真正解决**
+
+- 🎨 **修复 2 — 节点背景渐变改用 CSS 变量**：
+  - v0.3.5 用 inline `background: linear-gradient(...)`，可能覆盖 `.node-card` box-shadow 渲染层级
+  - v0.3.6 改为 CSS 变量 `'--node-color': '${color}26'`，`.node-card` 用 `var(--node-color, #f1f5f9)` 渲染
+  - 颜色饱和度从 `${color}14`（8% alpha）→ `${color}26`（15% alpha），更"一点点色相"
+
+- 🎨 **加固 3 — BottomToolbar 定位改用 flex 居中**：
+  - v0.3.5 用 `position: fixed; left: 50%; transform: translateX(-50%)`
+  - v0.3.6 改为 `position: fixed; left: 0; right: 0; display: flex; justify-content: center`（**完全无 transform**）
+  - 理由：`transform` 在 fixed/absolute 元素上会建立新的 containing block，在嵌套 transform / will-change 场景下可能让 fixed 偏移
+
+- 🎨 **加固 4 — NodePanel 容器同样改用 flex 居中**（App.tsx 中 `<div absolute bottom 72 left 50% translateX(-50%)>` → absolute flex 居中）
+
+- 🎨 **顶栏 lawe 风格化**（v0.3.6 完全照搬 lawe TopToolbar.tsx 布局）：
+  - "返回"按钮：纯图标 28x28 无文字
+  - Logo 缩小到 22x22 圆角 5
+  - 加 "AWE" 文字标识（13px / font-weight 700）
+  - 标题输入框改用 `flex: 1; max-width: 380px; min-width: 120px`（自适应）
+  - 版本号徽章改为胶囊样式（`#f8fafc 底 + slate-200 边 + 4px 圆角`）
+  - 撤销/重做按钮去掉白底边框，纯图标 + hover 浅灰（lawe 风格）
+  - 右侧按钮区 gap 8 → 4
+  - 发版按钮 font-weight 500 → 600（更醒目）
+
+- 📋 **版本号** v0.3.5 → v0.3.6（App.tsx 顶栏 + LeftNav.tsx 底部）
+
+- 📋 **PRD 同步**：升级到 v2.18（`AWE_PRD.md` 头部 + §1.7 增量说明）
+
+- 🐛 **避坑**（v0.3.6 沉淀）：
+  - **`box-shadow: 0 0 0 Npx` 即使是 N=1 也会在圆角外侧绘制"硬边"**：用浅色 4% 描边或纯阴影，不要用纯黑实心 spread
+  - **CSS 变量比内联 background 更适合做"主题相关样式"**：避免内联样式覆盖类的 box-shadow 渲染层级
+  - **`transform: translateX(-50%)` 在 fixed/absolute 元素上建立新的 containing block**：在嵌套 transform / will-change 场景下可能让 fixed/absolute 偏移，改用 flex 容器居中更稳健
+  - **节点选中态 4 角黑点的根因是 box-shadow spread**：不是 box-shadow 颜色 / 大小 / position 问题，是 `0 0 0 Npx` 这种 spread 模式导致的硬边，4 角最明显
+
+- ✅ **build 验证**：`tsc -b && vite build` → 0 errors → 1592 modules → dist hash `index-DSITAY-N.css` + `index-CJtiogos.js` (241.65 kB / gzip 73.18 kB)
+- ✅ **playwright 验证**（7 张截图存 `docs/shots/v036_*.png`）：
+  - `v036_04_node_selected.png` —— 4 角干净无黑框
+  - `v036_05_zoomed_in.png`（110%）—— bottom toolbar 仍在视口底部，左下角显示 "110%"
+  - `v036_06_zoomed_max.png`（161%）—— 节点变大，bottom toolbar 仍稳定，左下角显示 "161%"
+  - `v036_02_editor_blank.png` —— 顶栏紧凑精致
+- ✅ **bundle 验证**：
+  - `grep "v0.3.6"` → 命中（版本号更新）
+  - `grep "0 0 0 1px #0f172a"` → 不命中（4 角黑点根因已删除）
+  - `grep "linear-gradient(180deg, var(--node-color"` → 命中（CSS 变量方案）
+  - `grep "shadow-md"` → 0 命中（Canvas 根因修复）
+  - `grep "border-radius:12px"` → 命中（圆角 12 落地）
+  - `grep "inset 0 1px 1px rgba(255, 255, 255, 0.8)"` → 命中（双层 box-shadow）
 
 ### 1.0 今日进展 (2026-07-06 00:15)
 

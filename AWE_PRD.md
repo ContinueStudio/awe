@@ -1,13 +1,13 @@
-# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.16
+# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.18
 
 ## 1. 文档信息
 * **项目名称**：智能体工作流引擎 (Agentic Workflow Engine - AWE)
-* **文档版本**：v2.16 (节点选中态去黑框 + 圆角 10 + 渐变调淡)
-* **前序版本**：v2.15 (节点顶部渐变 + 去使用提示 + NodePanel hover 简介 + 发版主按钮 + 标题加宽)
+* **文档版本**：v2.18 (节点 4 角黑点彻底根因修复 + 顶栏 lawe 风格化 + BottomToolbar flex 居中)
+* **前序版本**：v2.17 (Canvas 外层 shadow-md 修复 + 缩放 fixed 化 + ZoomControls)
 * **主要负责人**：Gu Yu (资深全栈架构师)
 * **发布时间**：2026-07-05
 * **文档状态**：已锁定/已落地
-* **配套代码版本**：frontend v0.3.4
+* **配套代码版本**：frontend v0.3.6
 
 ---
 
@@ -275,6 +275,171 @@
   - `.node-card.is-selected` box-shadow `0 0 0 2px #0f172a` → `0 0 0 1px #0f172a, 0 1px 3px rgba(15,23,42,0.10)`
 * `src/components/NodeRender.tsx`：内联 style 的 background gradient 颜色 alpha 调淡（`1f/0a/42%` → `0f/06/50%`）
 * 版本号 `v0.3.3` → `v0.3.4`（App.tsx 顶栏 + LeftNav.tsx 底部）
+
+---
+
+## 1.6 v2.17 增量变更（相对 v2.16）
+
+> **同步规则**：AWE 项目中所有涉及功能、UI/UX 规范、产品信息的代码变更，必须同步更新本 PRD 文档。本节记录 v2.17 相对 v2.16 的全部增量（重大修复 + 新功能）。
+
+### 1.6.1 节点 4 角黑点：根因修复（Canvas.tsx 外层 div 去掉 shadow-md）
+* **根因（v2.16 残留 bug）**：
+  - 之前以为"4 角黑点"是 `.node-card.is-selected` 的 `box-shadow: 0 0 0 Npx` 造成的，反复改 N 没用
+  - **真正的根因**：`Canvas.tsx` 第 313-323 行的 `<foreignObject>` 内有个外层 `<div className="transition-shadow ${selected ? 'shadow-md' : ''}>` —— **这个外层 div 没有 border-radius**，但有 `shadow-md`（Tailwind 默认软阴影 `0 4px 6px -1px rgb(0 0 0 / 0.1)`）
+  - 内层 NodeRender 的 `.node-card` 有 10/12px 圆角，**圆角内的 box-shadow 不会显示在 4 角外**
+  - **外层方角阴影"漏"在 NodeRender 圆角外**，从外侧看节点 4 角被方框阴影包住 → 看起来"4 角是黑色的"
+* **变更后（v2.17）**：
+  - **去掉 Canvas.tsx 第 313-323 行外层 div 的 `shadow-md`**（根因修复）
+  - 选中态视觉**完全交给 NodeRender 内部** `.node-card.is-selected` 的 `0 0 0 1px #0f172a + 0 1px 3px rgba(15,23,42,0.10)`
+  - 不再有两层 box-shadow 叠加，4 角干净
+
+### 1.6.2 节点样式：完全照搬 lawe 风格（圆角 12 + 双层 box-shadow）
+* **变更前（v2.16）**：
+  - 圆角 10px
+  - box-shadow 单层 `0 1px 2px 0 rgb(0 0 0 / 0.05)`（shadcn --shadow-sm）
+* **变更后（v2.17）**：
+  - 圆角 12px（lawe 风格）
+  - box-shadow 双层（**完全照搬 lawe `.node-card` 样式**）：
+    - 默认：`0 4px 12px rgba(0, 0, 0, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.8)` —— 外阴影 + 内白色高光
+    - hover：`0 6px 18px rgba(15, 23, 42, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.8)` —— 加深 + 内高光
+    - selected：`0 0 0 1px #0f172a, 0 1px 3px rgba(15, 23, 42, 0.10)` —— 1px 黑环
+* **background 渐变调整**：
+  - 之前 `${color}0f 0%, ${color}06 18%, #ffffff 50%`（3 段渐变）
+  - 现在 `${color}14 0%, #ffffff 60%`（2 段渐变，更克制，参考 lawe 的 `#eff1fb → #fcfcfd → #ffffff` 风格）
+  - 14 = 8% alpha，比 v2.16 的 6% 还稍深一点，但更接近 lawe 的"8% 起步 + 60% 处已白底"风格
+
+### 1.6.3 缩放 bug 修复：BottomToolbar 和 NodeConfigDrawer 改 fixed 视口定位
+* **问题（v2.16）**：使用触控板放大视图后，底部菜单栏（BottomToolbar）和右侧 Drawer（NodeConfigDrawer）会"跑到视图外"
+* **根因**：两者都使用 `position: absolute` 相对父 div 定位，受父容器 reflow 和 transform 影响
+* **变更后（v2.17）**：
+  - **BottomToolbar.tsx**：`position: absolute` → `position: fixed`，`left: 16 + right: 16` → `left: 50% + transform: translateX(-50%)`（居中），`bottom: 16` 保持
+  - **NodeConfigDrawer（App.tsx 525-541 行）**：`className="absolute right-4 top-4 z-30"` → `className="fixed right-4 z-30"`，`top: 4` → `top: 60`（顶栏 44px + 16px 间距），新增 `height: 'calc(100vh - 76px)' + maxHeight: 800`
+  - **结论**：两个 UI 都用 fixed 视口定位，**永远固定在视口边界上**，缩放视图不会让它们跑出去
+
+### 1.6.4 新增功能：左下角缩放控件（ZoomControls 组件）
+* **变更前（v2.16）**：App.tsx 有 `const [zoom, setZoom] = useState(1)` 死代码，**永远 = 1**，因为没有 setZoom 的触发点
+* **变更后（v2.17）**：
+  - **App.tsx**：升级 `zoom (scalar)` → `canvasView ({ x, y, scale })`，由父组件管理，**传递给 Canvas 实现受控缩放**
+  - **Canvas.tsx**：view state 改为受控（`view` prop + `onViewChange` callback），删掉内部 useState
+  - **新增 `src/components/ZoomControls.tsx`**：左下角 fixed 定位（`left: 16, bottom: 16`）的小工具栏：
+    - `-` 按钮：缩小（scale × 0.909，最小 0.3）
+    - **`XX%` 文本**：实时显示当前缩放比例（tabular-nums 等宽数字）
+    - `+` 按钮：放大（scale × 1.1，最大 2.5）
+    - `适应` 按钮：scale 归 1，pan 归 (0, 0)
+  - 样式：白底 + slate-200 边 + 10px 圆角 + `box-shadow: 0 4px 16px rgba(15,23,42,0.08)` + 36px 高
+
+### 1.6.5 顶栏小调整（v0.3.5 lawe 风格化）
+* 顶栏保持 v2.13 规范（44px 白底 + slate-200 底边 + 黑底 logo + 字母 A），但**所有按钮的 onMouseLeave 状态恢复更精确**（之前 hover 离开后偶尔状态卡住），版本号 v0.3.4 → v0.3.5
+* **Logo** 仍为 `26×26 黑底 #0f172a + 字母 A` 风格（去紫色，shadcn 规范）
+* **发版按钮**：黑底白字 + Rocket 图标（v2.15 落地，v2.17 保持）
+* **版本历史按钮**：白底 + slate-200 边（次按钮样式）
+* **标题输入框**：420px 宽（v2.15 加宽，v2.17 保持）
+
+### 1.6.6 配套代码变更
+* `src/components/Canvas.tsx`：
+  - **根因修复**：去掉外层 div 的 `shadow-md` 类（4 角黑点修复）
+  - view state 改为受控：删 `useState view`、加 `view` 和 `onViewChange` props
+  - onWheel / 平移 / setView 全部改用 `onViewChange`
+  - 外层 div 改为 `flex-1 min-h-0 overflow-hidden`（去掉 flex 容器）
+* `src/components/BottomToolbar.tsx`：`position: absolute` → `fixed`；`left/right` 改为 `left: 50% + translateX(-50%)` 居中
+* `src/components/NodeRender.tsx`：渐变 `1f/0a/50%` → `14/60%`（2 段，lawe 风格）
+* `src/index.css .node-card`：圆角 10 → 12；box-shadow 单层 → 双层（外阴影 + 内白色高光）
+* `src/components/ZoomControls.tsx`：**新增**（左下角缩放控件）
+* `src/App.tsx`：
+  - 升级 `useState(1) zoom` → `useState({x,y,scale:1}) canvasView`
+  - 删 `useState(1) zoom` 死代码
+  - Canvas 加 `view` + `onViewChange` props
+  - BottomToolbar `zoom` prop 改用 `canvasView.scale`
+  - 新增 `<ZoomControls>` 渲染（左下角）
+  - NodeConfigDrawer `className` 改 `fixed right-4`，`top: 4` → `top: 60`
+* 版本号 `v0.3.4` → `v0.3.5`（App.tsx 顶栏 + LeftNav.tsx 底部）
+
+---
+
+## 1.7 v2.18 增量变更（相对 v2.17）
+
+> **同步规则**：AWE 项目中所有涉及功能、UI/UX 规范、产品信息的代码变更，必须同步更新本 PRD 文档。本节记录 v2.18 相对 v2.17 的全部增量（彻底修复节点 4 角黑点 + 顶栏 lawe 风格化）。
+
+### 1.7.1 节点 4 角黑点：彻底根因修复（去掉 `.is-selected` 的 `0 0 0 1px #0f172a` 黑色实心外环）
+* **根因（v2.17 残留 bug）**：
+  - v2.17 修复了 `Canvas.tsx` 外层 div 的 `shadow-md`（Tailwind 默认软阴影漏出 4 角），4 角黑点问题**部分缓解**
+  - 但**真正的 4 角黑点根因是另一个**：`.node-card.is-selected` 的 `box-shadow: 0 0 0 1px #0f172a, 0 1px 3px rgba(15, 23, 42, 0.10)`
+  - `0 0 0 1px #0f172a` 是**纯黑实心外环**（spread 1px），紧贴节点 border-radius（12px）外侧绘制
+  - 视觉上：节点选中后，12px 圆角外侧有 1px 厚的黑色硬边包住，4 角最明显（黑色"凸出"圆角外），用户看起来"4 角是黑色的"
+* **变更后（v2.18）**：
+  - 选中态 box-shadow 去掉 `0 0 0 1px #0f172a` 这个纯黑实心外环
+  - 改为**双层阴影加深**：
+    - `0 4px 16px rgba(15, 23, 42, 0.12)` —— 外阴影加深（暗一档，16px 半径）
+    - `0 0 0 1px rgba(15, 23, 42, 0.04)` —— **极淡 4% 灰色描边**（不是纯黑，配合圆角过渡）
+    - `inset 0 1px 1px rgba(255, 255, 255, 0.8)` —— 内白色高光保留
+  - 选中态识别度**完全靠 `border-color: #0f172a`（黑边）+ 更深的外阴影** 表达，4 角干净无黑框
+  - 验证：playwright 截图 v036_04_node_selected.png 确认 4 角干净
+
+### 1.7.2 节点背景渐变：通过 CSS 变量 `--node-color` 注入（避免内联 background 破坏 box-shadow 渲染）
+* **变更前（v2.17）**：`NodeRender.tsx` 用 inline style 设置 `background: linear-gradient(...)`，覆盖了 `.node-card` 类的 box-shadow 渲染层级
+* **变更后（v2.18）**：
+  - `.node-card` 的 background 改为 `linear-gradient(180deg, var(--node-color, #f1f5f9) 0%, #ffffff 60%)`（CSS 变量 + 回落默认值）
+  - `NodeRender.tsx` 去掉 inline `background`，改为设置 CSS 变量 `'--node-color': '${color}26'`（类型色 + 15% alpha）
+  - 优点：background 由 CSS 类控制，与 box-shadow 渲染层级一致，**避免内联样式覆盖导致的渲染异常**
+  - 颜色饱和度从 v2.17 的 `${color}14`（8% alpha）提升到 `${color}26`（15% alpha），更接近"一点点色相"的视觉
+
+### 1.7.3 BottomToolbar：定位从 `transform: translateX(-50%)` 改为 flex 居中容器
+* **问题（v2.17）**：
+  - `position: fixed; left: 50%; transform: translateX(-50%)` 实现居中
+  - 但 BottomToolbar 自身带 `transform: translateX(-50%)` 会**让它自己变成 fixed containing block**
+  - 在某些嵌套 transform / will-change / 父容器 filter 场景下，会被父容器变换影响导致**缩放时 toolbar 偏移到视口外**
+* **变更后（v2.18）**：
+  - 外层 div 改为 `position: fixed; left: 0; right: 0; bottom: 16px; display: flex; justify-content: center; gap: 10px; pointer-events: none`
+  - 完全无 `transform`，严格 fixed 视口定位
+  - 内部 toolbar 容器 `pointer-events: auto` 接收点击
+  - 验证：playwright 截图 v036_05/v036_06 在 110% / 161% 缩放下，bottom toolbar 都稳定在视口底部
+
+### 1.7.4 NodePanel 容器：absolute + flex 居中（替代 `left:50% + transform:translateX(-50%)`）
+* **变更前（v2.17）**：`<div style={{ position: 'absolute', bottom: 72, left: '50%', transform: 'translateX(-50%)' }}>` 居中
+* **变更后（v2.18）**：外层 `position: absolute; left: 0; right: 0; bottom: 72; display: flex; justify-content: center; pointer-events: none`，内层 wrapper `pointer-events: auto`
+* 理由：和 BottomToolbar 同理，避免 transform 在某些场景下干扰 absolute 定位
+
+### 1.7.5 顶栏 lawe 风格化（v0.3.6 完全照搬 lawe TopToolbar.tsx 布局）
+* **变更前（v0.3.5）**：
+  - "返回"按钮带文字（28px + "返回"），padding 0 8px gap 4
+  - Logo 26x26 圆角 6
+  - 标题输入框固定 420px
+  - 撤销/重用 awe-icon-btn（白底 + slate-200 边）
+  - 右侧按钮 gap 8
+* **变更后（v0.3.6 严格按 lawe 风格）**：
+  - 顶栏 padding `0 12px 0 8px`（lawe 是 0 16px 0 16px，紧凑 4px 节省）
+  - **"返回"按钮**：纯图标 28x28，无文字（lawe 风格）
+  - **Logo**：缩小到 22x22 圆角 5（lawe 是 26x26 圆角 6），letter-spacing -0.2
+  - **AWE 文字标识**：13px / font-weight 700 / `#0f172a` / letter-spacing 0.2
+  - **竖线分隔符**：18px 高度 + 14px 高度（lawe 风格）
+  - **标题输入框**：flex 1 / max-width 380px / min-width 120px（v2.18 改用 flex 自适应，max 380 不撑破）
+  - **版本号徽章**：v0.3.6 胶囊样式（`padding: 1px 6px`, `background: #f8fafc`, `border: 1px solid #e2e8f0`, `border-radius: 4`），更精致
+  - **撤销/重做**：纯图标 28x28 + hover 浅灰（无白底边框，lawe 风格）
+  - **撤销/重做 / 版本历史间** 加 1px 18px 竖线分隔
+  - **右侧按钮区**：gap 4（lawe 是 gap 8，紧凑 4px 节省）
+  - **发版按钮**：marginLeft 4 与版本历史按钮分开，font-weight 500 → 600（更醒目）
+* 整体观感：紧凑、精致、专业，符合 lawe "v2.0" 顶栏的所有视觉细节
+
+### 1.7.6 配套代码变更
+* `src/index.css .node-card`：
+  - background 改为 `linear-gradient(180deg, var(--node-color, #f1f5f9) 0%, #ffffff 60%)`（CSS 变量）
+  - `.is-selected` 去掉 `0 0 0 1px #0f172a`，改为 `0 4px 16px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.04), inset 0 1px 1px rgba(255, 255, 255, 0.8)`
+* `src/components/NodeRender.tsx`：
+  - 去掉 inline `background`
+  - 改为 inline `'--node-color': '${color}26'`
+* `src/components/BottomToolbar.tsx`：
+  - 定位从 `position: fixed; left: 50%; transform: translateX(-50%)` 改为 `position: fixed; left: 0; right: 0; display: flex; justify-content: center`（无 transform）
+* `src/App.tsx`：
+  - 顶栏完全重写（v0.3.6 lawe 风格化）
+  - NodePanel 容器改用 absolute + flex 居中
+  - 版本号 v0.3.5 → v0.3.6
+* `src/components/LeftNav.tsx`：底部版本号 v0.3.5 → v0.3.6
+* 验证截图：`docs/shots/v036_01_home.png` ~ `v036_07_layout.png`（7 张，覆盖 home / editor / 节点添加 / 选中 / 缩放 110% / 缩放 161% / 自动布局）
+
+### 1.7.7 避坑要点（v2.18 沉淀）
+* **`box-shadow: 0 0 0 Npx` 即使是 N=1 也会在圆角外侧绘制"硬边"**：选用浅色 4% 描边或纯阴影，不要用纯黑实心 spread，否则 4 角变方
+* **CSS 变量比内联 background 更适合做"主题相关样式"**：避免内联样式覆盖类的 box-shadow 渲染层级
+* **`transform: translateX(-50%)` 在 fixed/absolute 元素上建立新的 containing block**：在嵌套 transform / will-change 场景下可能让 fixed/absolute 偏移，改用 flex 容器居中更稳健
 
 ---
 

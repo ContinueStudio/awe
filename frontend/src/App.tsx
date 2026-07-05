@@ -24,6 +24,7 @@ import { Canvas } from './components/Canvas';
 import { NodePanel } from './components/NodePanel';
 import { BottomToolbar } from './components/BottomToolbar';
 import { ConfigPanel } from './components/ConfigPanel';
+import { ZoomControls } from './components/ZoomControls';
 import type { NodeDefinition, Workflow, WorkflowGraph } from '@/lib/types';
 
 const EMPTY_GRAPH: WorkflowGraph = { nodes: [], edges: [] };
@@ -75,7 +76,8 @@ export default function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
   const [showNodePanel, setShowNodePanel] = useState(false);
-  const [zoom, setZoom] = useState(1);
+  // v0.3.5 升级：zoom (scalar) → canvasView ({ x, y, scale })，由父组件管理，传递给 Canvas 实现左下角缩放控件
+  const [canvasView, setCanvasView] = useState<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 1 });
   const [toast, setToast] = useState<string | null>(null);
 
   // ---- 启动 ----
@@ -255,106 +257,166 @@ export default function App() {
     if (view.kind === 'editor') {
       return (
         <div className="h-full w-full flex flex-col" style={{ background: '#f8fafc' }}>
-          {/* 顶栏（PRD §9.2 shadcn 风格） */}
+          {/* 顶栏（v0.3.6 - 严格按 lawe 风格：紧凑 + 精致 + 黑白灰） */}
           <header
             style={{
-              height: 44, display: 'flex', alignItems: 'center',
-              padding: '0 16px', flexShrink: 0,
+              height: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '0 12px 0 8px', flexShrink: 0,
               background: '#ffffff', borderBottom: '1px solid #e2e8f0',
             }}
           >
-            {/* 左：返回 + Logo + 名称 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* 左：返回 + Logo + 工作流名 + 版本 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
               <button
                 onClick={backToHome}
-                className="awe-icon-btn"
-                style={{ width: 'auto', height: 28, padding: '0 8px', gap: 4 }}
                 title="返回工作流列表"
+                style={{
+                  width: 28, height: 28, borderRadius: 6,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'transparent', border: 'none',
+                  color: '#475569', cursor: 'pointer',
+                  transition: 'background 0.15s, color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9';
+                  (e.currentTarget as HTMLButtonElement).style.color = '#020617';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                  (e.currentTarget as HTMLButtonElement).style.color = '#475569';
+                }}
               >
-                <ArrowLeft size={14} />
-                <span style={{ fontSize: 12 }}>返回</span>
+                <ArrowLeft size={15} />
               </button>
-              <div style={{ width: 1, height: 20, background: '#e2e8f0' }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {/* Logo（PRD §9.2：黑底白字 + 字符 A，不用紫色） */}
-                <div
-                  style={{
-                    width: 26, height: 26, borderRadius: 6,
-                    background: '#0f172a',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}
-                >
-                  <span style={{ color: '#ffffff', fontSize: 12, fontWeight: 700 }}>A</span>
-                </div>
-                <input
-                  value={currentName}
-                  onChange={(e) => setCurrentName(e.target.value)}
-                  className="awe-input"
-                  style={{
-                    width: 420,
-                    maxWidth: 520,
-                    minWidth: 180,
-                    height: 28,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: '#020617',
-                    border: 'none',
-                    boxShadow: 'none',
-                    background: 'transparent',
-                    padding: '0 6px',
-                  }}
-                  onFocus={(e) => ((e.currentTarget as HTMLInputElement).style.background = '#f1f5f9')}
-                  onBlur={(e) => ((e.currentTarget as HTMLInputElement).style.background = 'transparent')}
-                  placeholder="工作流名称"
-                />
+
+              <div style={{ width: 1, height: 18, background: '#e2e8f0' }} />
+
+              {/* Logo（黑底白字方块 + 字符 A，对齐 lawe 'L' 风格） */}
+              <div
+                style={{
+                  width: 22, height: 22, borderRadius: 5,
+                  background: '#0f172a',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{ color: '#ffffff', fontSize: 11, fontWeight: 700, letterSpacing: -0.2 }}>A</span>
               </div>
-              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>v0.3.4</span>
+
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', flexShrink: 0, letterSpacing: 0.2 }}>
+                AWE
+              </span>
+
+              <span style={{ width: 1, height: 14, background: '#e2e8f0' }} />
+
+              {/* 标题输入（v0.3.6 加宽到 380px，支持长标题不截断） */}
+              <input
+                value={currentName}
+                onChange={(e) => setCurrentName(e.target.value)}
+                style={{
+                  flex: 1,
+                  maxWidth: 380,
+                  minWidth: 120,
+                  height: 28,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#020617',
+                  border: 'none',
+                  outline: 'none',
+                  boxShadow: 'none',
+                  background: 'transparent',
+                  padding: '0 8px',
+                  borderRadius: 4,
+                  transition: 'background 0.15s',
+                }}
+                onFocus={(e) => ((e.currentTarget as HTMLInputElement).style.background = '#f1f5f9')}
+                onBlur={(e) => ((e.currentTarget as HTMLInputElement).style.background = 'transparent')}
+                placeholder="工作流名称"
+              />
+
+              <span style={{
+                fontSize: 10, color: '#94a3b8', fontWeight: 500,
+                padding: '1px 6px', background: '#f8fafc', border: '1px solid #e2e8f0',
+                borderRadius: 4, flexShrink: 0,
+              }}>
+                v0.3.6
+              </span>
             </div>
 
-            {/* 右：撤销 / 重做 / 保存 / 运行 */}
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* 右：撤销 / 重做 / 版本历史 / 发版 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
               <button
                 onClick={onUndo}
                 title="撤销 Ctrl+Z"
-                className="awe-icon-btn"
-                style={{ width: 28, height: 28 }}
+                style={{
+                  width: 28, height: 28, borderRadius: 6,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'transparent', border: 'none',
+                  color: '#475569', cursor: 'pointer',
+                  transition: 'background 0.15s, color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9';
+                  (e.currentTarget as HTMLButtonElement).style.color = '#020617';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                  (e.currentTarget as HTMLButtonElement).style.color = '#475569';
+                }}
               >
-                <Undo2 size={13} />
+                <Undo2 size={14} />
               </button>
               <button
                 onClick={onRedo}
                 title="重做 Ctrl+Y"
-                className="awe-icon-btn"
-                style={{ width: 28, height: 28 }}
+                style={{
+                  width: 28, height: 28, borderRadius: 6,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'transparent', border: 'none',
+                  color: '#475569', cursor: 'pointer',
+                  transition: 'background 0.15s, color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9';
+                  (e.currentTarget as HTMLButtonElement).style.color = '#020617';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                  (e.currentTarget as HTMLButtonElement).style.color = '#475569';
+                }}
               >
-                <Redo2 size={13} />
+                <Redo2 size={14} />
               </button>
 
-              {/* 版本历史按钮（次按钮样式） */}
+              <div style={{ width: 1, height: 18, background: '#e2e8f0', margin: '0 4px' }} />
+
+              {/* 版本历史按钮（次按钮样式 - lawe 风格细边白底） */}
               <button
                 onClick={onOpenVersionHistory}
                 title="版本历史"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,
-                  padding: '0 12px', height: 28, borderRadius: 6,
+                  padding: '0 10px', height: 28, borderRadius: 6,
                   background: '#ffffff', border: '1px solid #e2e8f0', color: '#475569',
                   fontSize: 12, fontWeight: 500, cursor: 'pointer',
-                  transition: 'border-color 0.15s, color 0.15s',
+                  transition: 'border-color 0.15s, color 0.15s, background 0.15s',
                 }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.borderColor = '#0f172a';
                   (e.currentTarget as HTMLButtonElement).style.color = '#020617';
+                  (e.currentTarget as HTMLButtonElement).style.background = '#f8fafc';
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.borderColor = '#e2e8f0';
                   (e.currentTarget as HTMLButtonElement).style.color = '#475569';
+                  (e.currentTarget as HTMLButtonElement).style.background = '#ffffff';
                 }}
               >
                 <HistoryIcon size={13} />
                 版本历史
               </button>
 
-              {/* 发版按钮（主按钮样式：黑底白字 + Rocket 图标，PRD v2.15） */}
+              {/* 发版按钮（v0.3.6：黑底白字 + Rocket 图标，主按钮样式 - lawe 风格） */}
               <button
                 onClick={handleSave}
                 disabled={isSaving}
@@ -362,9 +424,10 @@ export default function App() {
                   display: 'flex', alignItems: 'center', gap: 4,
                   padding: '0 12px', height: 28, borderRadius: 6,
                   background: '#0f172a', border: '1px solid #0f172a', color: '#ffffff',
-                  fontSize: 12, fontWeight: 500, cursor: isSaving ? 'wait' : 'pointer',
+                  fontSize: 12, fontWeight: 600, cursor: isSaving ? 'wait' : 'pointer',
                   opacity: isSaving ? 0.6 : 1,
                   transition: 'background 0.15s, border-color 0.15s',
+                  marginLeft: 4,
                 }}
                 title="发版 (Ctrl+S)"
                 onMouseEnter={(e) => {
@@ -395,6 +458,8 @@ export default function App() {
               onWorkflowName={setCurrentName}
               onSelectNode={(id) => { setSelectedNodeId(id); setConfigOpen(!!id); }}
               onSave={() => {}}
+              view={canvasView}
+              onViewChange={setCanvasView}
             />
 
             <BottomToolbar
@@ -402,8 +467,15 @@ export default function App() {
               isRunning={isRunning}
               showNodePanel={showNodePanel}
               onToggleNodePanel={() => setShowNodePanel((v) => !v)}
-              zoom={zoom}
+              zoom={canvasView.scale}
               nodeCount={graph.nodes.length}
+            />
+
+            {/* v0.3.5 新增：左下角缩放控件（fixed 视口定位，不受 Canvas 缩放影响） */}
+            <ZoomControls
+              scale={canvasView.scale}
+              onChange={(s) => setCanvasView((v) => ({ ...v, scale: s }))}
+              onReset={() => setCanvasView((v) => ({ ...v, x: 0, y: 0 }))}
             />
 
             {showNodePanel && (
@@ -413,16 +485,22 @@ export default function App() {
                   style={{ position: 'absolute', inset: 0, zIndex: 24 }}
                 />
                 <div
+                  // v0.3.6 加固：absolute + flex 居中，替代 left:50% + transform:translateX(-50%)
+                  // 避免父容器在某些缩放渲染场景下 transform 影响此 absolute 定位
                   style={{
                     position: 'absolute',
+                    left: 0,
+                    right: 0,
                     bottom: 72,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
+                    display: 'flex',
+                    justifyContent: 'center',
                     zIndex: 30,
-                    pointerEvents: 'auto',
+                    pointerEvents: 'none',
                   }}
                 >
-                  <NodePanel onAdd={addNode} />
+                  <div style={{ pointerEvents: 'auto' }}>
+                    <NodePanel onAdd={addNode} />
+                  </div>
                 </div>
               </>
             )}
@@ -524,10 +602,13 @@ function NodeConfigDrawer({
 
   return (
     <aside
-      className="absolute right-4 top-4 z-30 flex flex-col"
+      // v0.3.5 修复：absolute → fixed，避免缩放时 Drawer 跑到视口外
+      className="fixed right-4 z-30 flex flex-col"
       style={{
+        top: 60, // 顶栏 44px + 16px 间距
         width: 380,
-        maxHeight: 'calc(100% - 80px)',
+        height: 'calc(100vh - 76px)', // 视口高度 - 顶栏 44 - 上下 16 间距
+        maxHeight: 800,
         background: '#ffffff',
         border: '1px solid #e2e8f0',
         borderRadius: 8,

@@ -144,9 +144,14 @@ export function BottomToolbar({
   return (
     <div
       style={{
-        position: 'absolute',
-        left: 16,
-        right: 16,
+        // v0.3.6 加固：定位改用 flex 全屏容器 + 内部 toolbar 居中
+        //  - 外层 fixed inset:0 + flex bottom/center，无 transform，fixed 严格相对视口
+        //  - 内部 toolbar 不带任何 transform，pointer-events: auto 接收点击
+        //  - 之前用 transform: translateX(-50%) 实现居中，会让此 div 自己变成 fixed containing block
+        //    在某些嵌套 transform / will-change 场景下会受父容器变换影响导致 toolbar 偏移
+        position: 'fixed',
+        left: 0,
+        right: 0,
         bottom: 16,
         zIndex: 25,
         display: 'flex',

@@ -36,6 +36,14 @@ data/*.bak-*
 *.log
 backend/*.out
 backend/*.err
+backend/awe.db
+backend/awe.db-shm
+backend/awe.db-wal
+
+# Temp scripts (auto-generated)
+docs/shots/copy_screenshots.bat
+docs/shots/copy_screenshots.js
+docs/shots/copy_screenshots.ps1
 
 # Env
 .env

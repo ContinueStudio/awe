@@ -61,15 +61,19 @@ export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, on
     <div
       ref={ref}
       className={cn('node-card', selected && 'is-selected')}
-      style={{
-        width: '100%',
-        padding: '12px 14px',
-        cursor: 'pointer',
-        minHeight: 64,
-        boxSizing: 'border-box',
-        // 顶部一点点类型色相渐变（v0.3.4 调淡：6% / 2% alpha，50% 处已完全白底）
-        background: `linear-gradient(180deg, ${color}0f 0%, ${color}06 18%, #ffffff 50%)`,
-      }}
+      style={
+        {
+          width: '100%',
+          padding: '12px 14px',
+          cursor: 'pointer',
+          minHeight: 64,
+          boxSizing: 'border-box',
+          // v0.3.6 修复：把顶部类型色相渐变通过 CSS 变量 --node-color 注入，
+          // .node-card 类的 background 会用 var(--node-color, #f1f5f9) 渲染。
+          // 避免内联 background 覆盖 .node-card 的 box-shadow 渲染层级导致 4 角黑点。
+          '--node-color': `${color}26`, // 类型色 + 15% alpha（与 v0.3.4 风格一致）
+        } as React.CSSProperties
+      }
       data-node-id={node.id}
       data-testid="node-render"
       onPointerDown={onPointerDown}

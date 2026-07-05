@@ -103,23 +103,36 @@
   background-size: 20px 20px;
 }
 
-/* -------- 节点卡片（shadcn 白底 + 细边） -------- */
+/* -------- 节点卡片（v0.3.6 - 完全照搬 lawe 样式，去掉 4 角黑点） --------
+   v0.3.6 变更（彻底修复 4 角黑点）：
+     - 选中态去掉 `0 0 0 1px #0f172a` 这个黑色实心外环 —— 12px 圆角 + 1px 黑色外环
+       会在 4 角画出黑色"外延"，看起来像 4 角被黑框包住。
+     - 完全照搬 lawe `.node-card` 的双层 box-shadow（外阴影 + 内白色高光）。
+     - 选中态保留双层阴影，但 hover/selected 用更深的 slate 阴影 + border 变 #0f172a。
+     - 顶部类型色相渐变通过 CSS 变量 `--node-color` 注入，避免 NodeRender 用内联 background 破坏 .node-card 的 box-shadow 渲染。 */
 .node-card {
-  background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: 10px; /* 比 shadcn 8 略圆，参考 lawe 12 但更克制 */
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  background: linear-gradient(180deg, var(--node-color, #f1f5f9) 0%, #ffffff 60%);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.03),
+    inset 0 1px 1px rgba(255, 255, 255, 0.8);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .node-card:hover {
   border-color: #cbd5e1;
-  box-shadow: var(--shadow);
+  box-shadow:
+    0 6px 18px rgba(15, 23, 42, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.8);
 }
-/* 选中态：去掉了 2px 黑色 box-shadow（v0.3.4 修复 4 角像被黑框包住的视觉问题）
-   改用 1px 极细黑环 + 柔和阴影，节点 4 角不再"被黑框包住" */
 .node-card.is-selected {
-  border-color: #0f172a;
-  box-shadow: 0 0 0 1px #0f172a, 0 1px 3px rgba(15, 23, 42, 0.10);
+  border-color: #0f172a;            /* 选中态：边框变黑（lawe 风格） */
+  /* 关键修复：去掉 `0 0 0 1px #0f172a` 黑色外环——那是 4 角黑点根因。
+     改为"双层阴影加深"：外阴影变深 + 内白色高光保留，4 角干净。 */
+  box-shadow:
+    0 4px 16px rgba(15, 23, 42, 0.12),
+    0 0 0 1px rgba(15, 23, 42, 0.04),
+    inset 0 1px 1px rgba(255, 255, 255, 0.8);
 }
 
 /* -------- 图标按钮（slate 风格） -------- */

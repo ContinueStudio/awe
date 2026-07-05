@@ -3,16 +3,16 @@
  * - 节点拖拽
  * - 端口连线（点击端口起始，再点目标端口完成）
  * - 选中删除
- * - 平移 / 缩放
+ * - 平移 / 缩放（view state 由父组件 App.tsx 管理，实现左下角缩放控件）
  *
  * 视觉参考 lawe：
  * - 背景用点状网格（CSS radial-gradient，class .awe-canvas）
- * - 连线蓝色 #3B4AF3（class .connection-path）
  * - 节点固定 340px 宽，NodeRender 内部按类型显示预览
+ * - 选中态视觉由 NodeRender 内部 .node-card.is-selected 处理
+ *   （v0.3.5 修复：去掉外层 div 的 shadow-md，避免方角阴影透过圆角"漏"出导致 4 角黑点）
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
 import type { CanvasEdge, CanvasNode, NodeDefinition, WorkflowGraph } from '@/lib/types';
 import { NodeRender } from './NodeRender';
 
@@ -26,15 +26,12 @@ interface Props {
   onWorkflowName: (name: string) => void;
   onSelectNode: (id: string | null) => void;
   onSave?: (id: string) => void;
+  /** 视图状态（受控） */
+  view: { x: number; y: number; scale: number };
+  onViewChange: (v: { x: number; y: number; scale: number }) => void;
 }
 
-interface ViewState {
-  x: number;
-  y: number;
-  scale: number;
-}
-
-const DEFAULT_VIEW: ViewState = { x: 0, y: 0, scale: 1 };
+const DEFAULT_VIEW = { x: 0, y: 0, scale: 1 };
 
 export function Canvas({
   workflowId,
@@ -46,9 +43,10 @@ export function Canvas({
   onWorkflowName,
   onSelectNode,
   onSave,
+  view,
+  onViewChange,
 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [view, setView] = useState<ViewState>(DEFAULT_VIEW);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draftEdge, setDraftEdge] = useState<{ fromNode: string; x: number; y: number } | null>(null);
   const [dragNode, setDragNode] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
@@ -93,7 +91,7 @@ export function Canvas({
   const onNodeMouseDown = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setSelectedId(id);
-    onSelectNode(id); // 同步给父组件打开右侧配置 Drawer
+    onSelectNode(id);
     const pos = getNodePos(id);
     const w = screenToWorld(e.clientX, e.clientY);
     setDragNode({ id, offsetX: w.x - pos.x, offsetY: w.y - pos.y });
@@ -113,7 +111,7 @@ export function Canvas({
         const w = screenToWorld(e.clientX, e.clientY);
         updateNodeMeta(dragNode.id, { x: w.x - dragNode.offsetX, y: w.y - dragNode.offsetY });
       } else if (panning) {
-        setView((v) => ({ ...v, x: e.clientX - panning.x, y: e.clientY - panning.y }));
+        onViewChange({ ...view, x: e.clientX - panning.x, y: e.clientY - panning.y });
       } else if (draftEdge) {
         const w = screenToWorld(e.clientX, e.clientY);
         setDraftEdge((d) => (d ? { ...d, x: w.x, y: w.y } : d));
@@ -129,7 +127,7 @@ export function Canvas({
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [dragNode, panning, draftEdge, screenToWorld, updateNodeMeta]);
+  }, [dragNode, panning, draftEdge, screenToWorld, updateNodeMeta, view, onViewChange]);
 
   // ---- 缩放 ----
   const onWheel = (e: React.WheelEvent) => {
@@ -139,12 +137,10 @@ export function Canvas({
     if (!rect) return;
     const cx = e.clientX - rect.left;
     const cy = e.clientY - rect.top;
-    setView((v) => {
-      const ns = Math.max(0.3, Math.min(2.5, v.scale * factor));
-      const wx = (cx - v.x) / v.scale;
-      const wy = (cy - v.y) / v.scale;
-      return { x: cx - wx * ns, y: cy - wy * ns, scale: ns };
-    });
+    const ns = Math.max(0.3, Math.min(2.5, view.scale * factor));
+    const wx = (cx - view.x) / view.scale;
+    const wy = (cy - view.y) / view.scale;
+    onViewChange({ x: cx - wx * ns, y: cy - wy * ns, scale: ns });
   };
 
   // ---- 端口连线 ----
@@ -214,7 +210,6 @@ export function Canvas({
   }, [workflowId]);
 
   // ---- 渲染辅助 ----
-  // 节点宽度固定 340（与 lawe 一致）；高度由 NodeRender 内部 ResizeObserver 测出
   const NODE_W = 340;
   const FALLBACK_NODE_H = 120;
   const PORT_R = 5;
@@ -257,7 +252,7 @@ export function Canvas({
       y: portDotY(baseY, i),
     }));
     const outs = (def?.outputs || []).map((_, i) => ({
-      name: def!.outputs[i].name,
+      name: def!.inputs ? def!.outputs[i].name : '',
       x: getNodePos(id).x + NODE_W,
       y: portDotY(baseY, i),
     }));
@@ -273,96 +268,93 @@ export function Canvas({
   };
 
   return (
-    <div className="relative flex-1 flex">
-      <div className="relative flex-1">
-        <svg
-          ref={svgRef}
-          className="awe-canvas select-none"
-          onMouseDown={onCanvasMouseDown}
-          onWheel={onWheel}
-        >
-          <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>
-            {/* 已有连线（PRD §9.2 slate-400） */}
-            {graph.edges.map((e) => (
-              <path
-                key={e.id || `${e.source}-${e.target}`}
-                d={edgePath(e)}
-                className="connection-path"
-              />
-            ))}
-            {/* 正在拖拽的连线（虚线） */}
-            {draftEdge && (
-              <path
-                d={`M ${(portPositions(draftEdge.fromNode).outs[0]?.x ?? 0)} ${(portPositions(draftEdge.fromNode).outs[0]?.y ?? 0)} L ${draftEdge.x} ${draftEdge.y}`}
-                className="connection-path-dim"
-              />
-            )}
+    <div className="relative flex-1 min-h-0 overflow-hidden">
+      <svg
+        ref={svgRef}
+        className="awe-canvas select-none"
+        onMouseDown={onCanvasMouseDown}
+        onWheel={onWheel}
+      >
+        <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>
+          {/* 已有连线（slate-400） */}
+          {graph.edges.map((e) => (
+            <path
+              key={e.id || `${e.source}-${e.target}`}
+              d={edgePath(e)}
+              className="connection-path"
+            />
+          ))}
+          {/* 正在拖拽的连线（虚线） */}
+          {draftEdge && (
+            <path
+              d={`M ${(portPositions(draftEdge.fromNode).outs[0]?.x ?? 0)} ${(portPositions(draftEdge.fromNode).outs[0]?.y ?? 0)} L ${draftEdge.x} ${draftEdge.y}`}
+              className="connection-path-dim"
+            />
+          )}
 
-            {/* 节点 */}
-            {graph.nodes.map((n) => {
-              const def = nodeDefs[n.type];
-              if (!def) return null;
-              const pos = getNodePos(n.id);
-              const totalPorts = def.inputs.length + def.outputs.length;
-              const measured = nodeHeights[n.id];
-              const h = measured && measured > 0
-                ? measured
-                : Math.max(FALLBACK_NODE_H, HEADER_H + PORT_AREA_TOP_PAD + PORT_AREA_BOTTOM_PAD + totalPorts * (PORT_ROW_H + PORT_GAP_BETWEEN));
-              return (
-                <g key={n.id} transform={`translate(${pos.x},${pos.y})`} data-node-pos={n.id}>
-                  <foreignObject width={NODE_W} height={h}>
-                    <div
-                      onMouseDown={(e) => onNodeMouseDown(e, n.id)}
-                      onClick={(e) => { e.stopPropagation(); setSelectedId(n.id); onSelectNode(n.id); }}
-                      className={cn(
-                        'transition-shadow',
-                        selectedId === n.id ? 'shadow-md' : '',
-                      )}
-                      data-node-height={h}
-                    >
-                      <NodeRender
-                        node={n}
-                        def={def}
-                        selected={selectedId === n.id}
-                        onPointerDown={() => {}}
-                        onStartEdge={(e) => startEdge(e, n.id)}
-                        onCompleteEdge={(e) => completeEdge(e, n.id)}
-                        onMeasured={(m) => measureNode(n.id, m)}
-                      />
-                    </div>
-                  </foreignObject>
-                  {/* 端口小圆点（左侧输入 / 右侧输出） */}
-                  {def.inputs.map((_, i) => {
-                    const py = portDotY(0, i);
-                    return (
-                      <circle
-                        key={`in-${i}`}
-                        cx={0} cy={py} r={PORT_R}
-                        fill="#ffffff" stroke="#475569" strokeWidth={1.5}
-                        style={{ cursor: 'crosshair' }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onMouseUp={(e) => completeEdge(e, n.id)}
-                      />
-                    );
-                  })}
-                  {def.outputs.map((_, i) => {
-                    const py = portDotY(0, i);
-                    return (
-                      <circle
-                        key={`out-${i}`}
-                        cx={NODE_W} cy={py} r={PORT_R}
-                        fill="#ffffff" stroke="#475569" strokeWidth={1.5}
-                        style={{ cursor: 'crosshair' }}
-                        onMouseDown={(e) => startEdge(e, n.id)}
-                      />
-                    );
-                  })}
-                </g>
-              );
-            })}
-          </g>
-        </svg>
-      </div>
+          {/* 节点 */}
+          {graph.nodes.map((n) => {
+            const def = nodeDefs[n.type];
+            if (!def) return null;
+            const pos = getNodePos(n.id);
+            const totalPorts = def.inputs.length + def.outputs.length;
+            const measured = nodeHeights[n.id];
+            const h = measured && measured > 0
+              ? measured
+              : Math.max(FALLBACK_NODE_H, HEADER_H + PORT_AREA_TOP_PAD + PORT_AREA_BOTTOM_PAD + totalPorts * (PORT_ROW_H + PORT_GAP_BETWEEN));
+            return (
+              <g key={n.id} transform={`translate(${pos.x},${pos.y})`} data-node-pos={n.id}>
+                <foreignObject width={NODE_W} height={h}>
+                  {/* v0.3.5 修复：去掉外层 div 的 shadow-md（方角阴影透过圆角漏出导致 4 角黑点）
+                      选中态视觉完全交给 NodeRender 内部 .node-card.is-selected 处理 */}
+                  <div
+                    onMouseDown={(e) => onNodeMouseDown(e, n.id)}
+                    onClick={(e) => { e.stopPropagation(); setSelectedId(n.id); onSelectNode(n.id); }}
+                    style={{ width: '100%' }}
+                    data-node-height={h}
+                  >
+                    <NodeRender
+                      node={n}
+                      def={def}
+                      selected={selectedId === n.id}
+                      onPointerDown={() => {}}
+                      onStartEdge={(e) => startEdge(e, n.id)}
+                      onCompleteEdge={(e) => completeEdge(e, n.id)}
+                      onMeasured={(m) => measureNode(n.id, m)}
+                    />
+                  </div>
+                </foreignObject>
+                {/* 端口小圆点（左侧输入 / 右侧输出） */}
+                {def.inputs.map((_, i) => {
+                  const py = portDotY(0, i);
+                  return (
+                    <circle
+                      key={`in-${i}`}
+                      cx={0} cy={py} r={PORT_R}
+                      fill="#ffffff" stroke="#475569" strokeWidth={1.5}
+                      style={{ cursor: 'crosshair' }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onMouseUp={(e) => completeEdge(e, n.id)}
+                    />
+                  );
+                })}
+                {def.outputs.map((_, i) => {
+                  const py = portDotY(0, i);
+                  return (
+                    <circle
+                      key={`out-${i}`}
+                      cx={NODE_W} cy={py} r={PORT_R}
+                      fill="#ffffff" stroke="#475569" strokeWidth={1.5}
+                      style={{ cursor: 'crosshair' }}
+                      onMouseDown={(e) => startEdge(e, n.id)}
+                    />
+                  );
+                })}
+              </g>
+            );
+          })}
+        </g>
+      </svg>
     </div>
   );
 }
