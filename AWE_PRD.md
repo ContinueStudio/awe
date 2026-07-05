@@ -1,13 +1,13 @@
-# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.14
+# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.15
 
 ## 1. 文档信息
 * **项目名称**：智能体工作流引擎 (Agentic Workflow Engine - AWE)
-* **文档版本**：v2.14 (节点面板精简 + 顶栏 发版/版本历史 + 工具栏居中)
-* **前序版本**：v2.13 (编辑模式全屏 + 底部双工具栏 + 节点 hover 详情)
+* **文档版本**：v2.15 (节点顶部渐变 + 去使用提示 + NodePanel hover 简介 + 发版主按钮 + 标题加宽)
+* **前序版本**：v2.14 (节点面板精简 + 顶栏 发版/版本历史 + 工具栏居中)
 * **主要负责人**：Gu Yu (资深全栈架构师)
 * **发布时间**：2026-07-05
 * **文档状态**：已锁定/已落地
-* **配套代码版本**：frontend v0.3.2
+* **配套代码版本**：frontend v0.3.3
 
 ---
 
@@ -169,6 +169,70 @@
 * `src/App.tsx`：顶栏 import 调整 `Save/Play` → `History/GitBranch`；新增 `onOpenVersionHistory`；去掉运行按钮；保存改发版 + GitBranch 图标
 * `src/components/BottomToolbar.tsx`：`justify-content: space-between` → `center`
 * 版本号 `v0.3.1` → `v0.3.2`（App.tsx 顶栏 + LeftNav.tsx 底部）
+
+---
+
+## 1.4 v2.15 增量变更（相对 v2.14）
+
+> **同步规则**：AWE 项目中所有涉及功能、UI/UX 规范、产品信息的代码变更，必须同步更新本 PRD 文档。本节记录 v2.15 相对 v2.14 的全部增量。
+
+### 1.4.1 画布节点：恢复顶部一点点类型色相渐变
+* **变更前（v2.14）**：`NodeRender` 节点最外层 div 用纯白背景（`background: #ffffff`），节点看上去"扁平冷冰"，色相信息完全靠左侧 26×26 圆角色块承载。
+* **变更后（v2.15）**：恢复顶部一点点类型色相渐变，**向下迅速过渡到纯白**（不影响阅读）：
+  - 渐变定义：`linear-gradient(180deg, ${color}1f 0%, ${color}0a 18%, #ffffff 42%)`
+  - `1f` ≈ 12% alpha、`0a` ≈ 4% alpha — 颜色非常淡，顶部轻染色相
+  - 42% 高度处已完全过渡到纯白，下方 body 区仍是干净白底
+  - 视觉：用户一眼能感知"这是哪个类型的节点"（绿/蓝/橙/天空/红/黑），同时 body 的内嵌 config 预览仍保持高对比度
+* **零紫色**：颜色仍用 v2.12 规范的 6 类行业色（emerald/blue/amber/sky/rose/slate），没有引入新色
+
+### 1.4.2 编辑模式：去掉右上角"使用提示"卡片
+* **变更前（v2.14）**：空画布（或无选中节点）时，右上角显示一个 280×auto 的"使用提示"白卡，列出 4 条提示（点击底部 + 添加节点 / 拖线连接 / 点击节点编辑配置 / 拖动画布平移视角）。
+* **变更后（v2.15）**：完全删除该卡片。理由：
+  - 提示信息对老用户是噪声，对新用户也很快成视觉负担
+  - 编辑模式顶栏"返回"按钮和底部工具栏"+"添加节点已足够显性
+  - 让画布右上角空间释放给节点本身/将来可能的批量操作
+* **影响范围**：仅 `App.tsx` 中 `!configOpen && !selectedNodeId && graph.nodes.length > 0` 条件块
+
+### 1.4.3 NodePanel：hover 节点弹出 240px 简介浮卡
+* **变更前（v2.14）**：`NodePanel` 仅显示「类型色块 + 名称」，用户必须点击添加到画布后才能在右侧 Drawer 看完整描述。
+* **变更后（v2.15）**：hover 节点时弹出 240px 简介浮卡，**portal 到 body**（避免被内部 scroll 裁剪）：
+  - 浮卡定位：`position: fixed`，基于 button `getBoundingClientRect` 计算 top/left，`transform: translate(-50%, -100%)` 让浮卡在按钮正上方
+  - 浮卡内容（自上而下）：
+    1. **分类标签**：`触发 / 边界` / `AI 与语义路由` / ... · type（11px slate-400）
+    2. **节点名称**：13px slate-950 / font-weight 600
+    3. **简介描述**：12px slate-600 / lineHeight 1.5（缺省 "点击添加到画布后，在右侧面板配置参数。"）
+    4. **端口统计**：底部 1px 分割线 + `N 输入` / `M 输出`（11px slate-500）
+  - 浮卡样式：白底 + `border-slate-200` + `rounded-lg` + `box-shadow 0 6 24 rgba(15,23,42,0.12)` + `pointer-events: none`（不挡点击）
+  - zIndex 1000，确保覆盖画布和节点 Drawer
+
+### 1.4.4 顶栏"发版"按钮：升级为主按钮 + Rocket 图标
+* **变更前（v2.14）**：发版按钮是次按钮样式（白底 + slate-200 边 + slate-500 文字），图标 `GitBranch`。
+* **变更后（v2.15）**：
+  - **样式升级为主按钮**：黑底白字（`bg-slate-900 #0f172a` + `color: #ffffff`），hover 加深到 `#020617`（slate-950）
+  - **图标更换为 `Rocket`**：比 `GitBranch` 更贴"发版/发布"语义（GitBranch 暗示分支管理，Rocket 暗示一键发射/部署）
+  - 其它属性保持不变：height 28 / padding 0 12 / 6px 圆角 / 12px 字号
+  - **保留 loading 态**：保存中显示 `Loader2` spinner + `cursor: wait` + 0.6 opacity
+* **理由**：发版是用户最关键的操作（保存到数据库 + 后续可触发版本管理），主按钮样式更符合用户对"重要操作"的视觉预期
+
+### 1.4.5 顶栏标题输入框：加宽到 420px（支持长标题）
+* **变更前（v2.14）**：标题输入框 `width: 260px`，14px 字号，6 像素汉字只能显示约 12 个字就截断
+* **变更后（v2.15）**：
+  - `width: 420px`（默认）/ `max-width: 520px`（防撑破顶栏）/ `min-width: 180px`（短标题不显空）
+  - 14px 字号 + font-weight 600 + slate-950 颜色保持不变
+  - 其它属性（无边框 / focus 时 `bg-slate-100` / placeholder "工作流名称"）保持不变
+* **理由**：实际工作流名常包含"客户名称 + 业务场景 + 时间"等长串描述（如「2026 Q3 客户回访自动化工单流」），260px 完全不够用
+
+### 1.4.6 配套代码变更
+* `src/components/NodeRender.tsx`：最外层 div 加 `background: linear-gradient(180deg, ${color}1f 0%, ${color}0a 18%, #ffffff 42%)`
+* `src/App.tsx`：
+  - 删除「使用提示」条件块（v2.14 第 422-439 行）
+  - 标题 input 宽度 260 → 420 + maxWidth 520 + minWidth 180
+  - 发版按钮样式：白底 → 黑底白字；图标 `GitBranch` → `Rocket`；import 调整
+* `src/components/NodePanel.tsx`：
+  - 新增 `hoveredType` / `hoverRect` / `hoveredDef` state
+  - 节点 button `onMouseEnter` / `onMouseLeave` 合并 handler（同时更新 hover state 和背景色）
+  - 末尾添加 portal 浮卡（条件 `hoveredDef && hoverRect`）
+* 版本号 `v0.3.2` → `v0.3.3`（App.tsx 顶栏 + LeftNav.tsx 底部）
 
 ---
 

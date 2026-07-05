@@ -3,8 +3,10 @@
  * - 底部悬浮，白底 + 细边 + rounded-lg + 极轻阴影
  * - 搜索框 + 2 列节点网格
  * - 节点 icon 用首字母字符（类型色条 + 白字）
+ * - hover 节点弹出 240px 简介浮卡（portal 到 body，避免被内部 scroll 裁剪）
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 import type { NodeDefinition } from '@/lib/types';
 
@@ -37,6 +39,10 @@ export function NodePanel({ onAdd }: Props) {
   const [keyword, setKeyword] = useState('');
   const [nodes, setNodes] = useState<NodeDefinition[]>([]);
 
+  // hover 浮卡状态：当前 hover 的节点 type + button 屏幕坐标
+  const [hoveredType, setHoveredType] = useState<string | null>(null);
+  const [hoverRect, setHoverRect] = useState<DOMRect | null>(null);
+
   useEffect(() => {
     api.listNodes().then((d) => setNodes(d.nodes)).catch(console.error);
   }, []);
@@ -51,6 +57,22 @@ export function NodePanel({ onAdd }: Props) {
     }
     return result;
   }, [keyword, nodes]);
+
+  // 当前 hover 的节点定义
+  const hoveredDef = useMemo(
+    () => (hoveredType ? nodes.find((n) => n.type === hoveredType) || null : null),
+    [hoveredType, nodes],
+  );
+
+  const onItemEnter = (e: React.MouseEvent<HTMLButtonElement>, type: string) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredType(type);
+    setHoverRect(rect);
+  };
+  const onItemLeave = () => {
+    setHoveredType(null);
+    setHoverRect(null);
+  };
 
   return (
     <div
@@ -141,6 +163,14 @@ export function NodePanel({ onAdd }: Props) {
                     <button
                       key={item.type}
                       onClick={() => onAdd(item.type)}
+                      onMouseEnter={(e) => {
+                        onItemEnter(e, item.type);
+                        (e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9';
+                      }}
+                      onMouseLeave={(e) => {
+                        onItemLeave();
+                        (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                      }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -153,8 +183,6 @@ export function NodePanel({ onAdd }: Props) {
                         textAlign: 'left',
                         transition: 'background 0.15s',
                       }}
-                      onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9')}
-                      onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'transparent')}
                     >
                       <div
                         style={{
@@ -203,6 +231,46 @@ export function NodePanel({ onAdd }: Props) {
           filter: 'drop-shadow(0 1px 0 #e2e8f0)',
         }}
       />
+
+      {/* hover 浮卡：portal 到 body，按 button 屏幕坐标定位在按钮上方 */}
+      {hoveredDef && hoverRect && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: hoverRect.top - 8,
+            left: hoverRect.left + hoverRect.width / 2,
+            transform: 'translate(-50%, -100%)',
+            width: 240,
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: 8,
+            boxShadow: '0 6px 24px rgba(15,23,42,0.12)',
+            padding: 12,
+            pointerEvents: 'none',
+            zIndex: 1000,
+            color: '#020617',
+          }}
+        >
+          {/* 分类 + type */}
+          <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>
+            {(CATEGORY_LABEL[hoveredDef.category] || hoveredDef.category)} · {hoveredDef.type}
+          </div>
+          {/* 名称 */}
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#020617', marginTop: 2, marginBottom: 6 }}>
+            {hoveredDef.name}
+          </div>
+          {/* 简介 */}
+          <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.5, marginBottom: 8 }}>
+            {hoveredDef.description || '点击添加到画布后，在右侧面板配置参数。'}
+          </div>
+          {/* 端口统计 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', borderTop: '1px solid #f1f5f9', paddingTop: 6 }}>
+            <span>{hoveredDef.inputs.length} 输入</span>
+            <span>{hoveredDef.outputs.length} 输出</span>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

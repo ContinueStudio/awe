@@ -13,7 +13,7 @@
  * - 字体 Inter
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Undo2, Redo2, History as HistoryIcon, Loader2, GitBranch } from 'lucide-react';
+import { ArrowLeft, Undo2, Redo2, History as HistoryIcon, Loader2, Rocket } from 'lucide-react';
 import { api } from '@/lib/api';
 import { LeftNav, NavKey } from './components/LeftNav';
 import { WorkflowsPage as HomePage } from './pages/HomePage';
@@ -291,8 +291,16 @@ export default function App() {
                   onChange={(e) => setCurrentName(e.target.value)}
                   className="awe-input"
                   style={{
-                    width: 260, height: 28, fontSize: 14, fontWeight: 600, color: '#020617',
-                    border: 'none', boxShadow: 'none', background: 'transparent',
+                    width: 420,
+                    maxWidth: 520,
+                    minWidth: 180,
+                    height: 28,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: '#020617',
+                    border: 'none',
+                    boxShadow: 'none',
+                    background: 'transparent',
                     padding: '0 6px',
                   }}
                   onFocus={(e) => ((e.currentTarget as HTMLInputElement).style.background = '#f1f5f9')}
@@ -300,7 +308,7 @@ export default function App() {
                   placeholder="工作流名称"
                 />
               </div>
-              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>v0.3.2</span>
+              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>v0.3.3</span>
             </div>
 
             {/* 右：撤销 / 重做 / 保存 / 运行 */}
@@ -346,30 +354,30 @@ export default function App() {
                 版本历史
               </button>
 
-              {/* 发版按钮（次按钮样式，PRD v2.14：保存 → 发版） */}
+              {/* 发版按钮（主按钮样式：黑底白字 + Rocket 图标，PRD v2.15） */}
               <button
                 onClick={handleSave}
                 disabled={isSaving}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,
                   padding: '0 12px', height: 28, borderRadius: 6,
-                  background: '#ffffff', border: '1px solid #e2e8f0', color: '#475569',
+                  background: '#0f172a', border: '1px solid #0f172a', color: '#ffffff',
                   fontSize: 12, fontWeight: 500, cursor: isSaving ? 'wait' : 'pointer',
-                  opacity: isSaving ? 0.5 : 1,
-                  transition: 'border-color 0.15s, color 0.15s',
+                  opacity: isSaving ? 0.6 : 1,
+                  transition: 'background 0.15s, border-color 0.15s',
                 }}
                 title="发版 (Ctrl+S)"
                 onMouseEnter={(e) => {
                   if (isSaving) return;
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = '#0f172a';
-                  (e.currentTarget as HTMLButtonElement).style.color = '#020617';
+                  (e.currentTarget as HTMLButtonElement).style.background = '#020617';
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = '#020617';
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = '#e2e8f0';
-                  (e.currentTarget as HTMLButtonElement).style.color = '#475569';
+                  (e.currentTarget as HTMLButtonElement).style.background = '#0f172a';
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = '#0f172a';
                 }}
               >
-                {isSaving ? <Loader2 size={13} className="animate-spin" /> : <GitBranch size={13} />}
+                {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Rocket size={13} />}
                 发版
               </button>
             </div>
@@ -417,25 +425,6 @@ export default function App() {
                   <NodePanel onAdd={addNode} />
                 </div>
               </>
-            )}
-
-            {!configOpen && !selectedNodeId && graph.nodes.length > 0 && (
-              <div
-                style={{
-                  position: 'absolute', right: 20, top: 16, zIndex: 15,
-                  width: 280, background: '#ffffff', border: '1px solid #e2e8f0',
-                  borderRadius: 8, padding: 16, boxShadow: 'var(--shadow-float)',
-                  color: '#64748b', fontSize: 13,
-                }}
-              >
-                <div style={{ fontWeight: 600, color: '#020617', marginBottom: 8 }}>使用提示</div>
-                <ul style={{ paddingLeft: 18, lineHeight: 1.8, margin: 0 }}>
-                  <li>点击底部「＋」添加节点</li>
-                  <li>从节点端口拖线连接</li>
-                  <li>点击节点右侧面板编辑配置</li>
-                  <li>拖动画布空白处平移视角</li>
-                </ul>
-              </div>
             )}
 
             {selectedNode && selectedDef && configOpen && (

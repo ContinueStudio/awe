@@ -61,7 +61,15 @@ export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, on
     <div
       ref={ref}
       className={cn('node-card', selected && 'is-selected')}
-      style={{ width: '100%', padding: '12px 14px', cursor: 'pointer', minHeight: 64, boxSizing: 'border-box' }}
+      style={{
+        width: '100%',
+        padding: '12px 14px',
+        cursor: 'pointer',
+        minHeight: 64,
+        boxSizing: 'border-box',
+        // 顶部一点点类型色相渐变（v0.3.0 风格），向下迅速过渡到纯白
+        background: `linear-gradient(180deg, ${color}1f 0%, ${color}0a 18%, #ffffff 42%)`,
+      }}
       data-node-id={node.id}
       data-testid="node-render"
       onPointerDown={onPointerDown}

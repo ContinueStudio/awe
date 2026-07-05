@@ -1,11 +1,44 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.14**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.15**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.3.2 - 2026-07-05 22:30)
+## 1. 当前进度 (v0.3.3 - 2026-07-05 23:50)
+
+### 1.0 今日进展 (2026-07-05 23:50)
+
+**【本轮】v0.3.3：节点顶部渐变 + 去使用提示 + NodePanel hover 简介 + 发版主按钮 + 标题加宽（PRD v2.15）**
+- 🎨 **改动**：
+  1. **NodeRender 节点顶部渐变**（恢复 v0.3.0 风格）：最外层 div 加 `background: linear-gradient(180deg, ${color}1f 0%, ${color}0a 18%, #ffffff 42%)` — 顶部 12%/4% alpha 染色，42% 处已完全白底，下方 body 仍干净
+  2. **App.tsx 删除「使用提示」卡片**：去掉空画布时右上角的 280×auto 提示卡（4 条提示文字），让画布右上角空间释放
+  3. **NodePanel hover 简介浮卡**（新功能）：
+     - 新增 `hoveredType` / `hoverRect` / `hoveredDef` state
+     - 节点 button `onMouseEnter` 合并 handler：同时更新 hover state + 背景色
+     - 浮卡 portal 到 `document.body`（避免被内部 scroll 裁剪）
+     - 240px 宽 + 分类标签 + 名称 + 简介描述 + 端口统计
+     - `position: fixed` + `transform: translate(-50%, -100%)` 让浮卡在按钮正上方
+     - `pointer-events: none`（不挡点击）+ zIndex 1000
+  4. **发版按钮升级主按钮 + Rocket 图标**：
+     - 样式：白底 → 黑底白字（`#0f172a` + 白字），hover 加深到 `#020617`
+     - 图标：`GitBranch` → `Rocket`（更贴"发版/发布"语义）
+     - 保留 loading 态（Loader2 spinner + cursor:wait + 0.6 opacity）
+  5. **标题输入框加宽**：`width: 260` → `420` + `max-width: 520` + `min-width: 180`，避免长标题截断
+  6. **版本号 v0.3.2 → v0.3.3**（App.tsx 顶栏 + LeftNav.tsx 底部）
+  7. **PRD 同步**：升级到 v2.15（`AWE_PRD.md` 头部 + §1.4 增量说明）
+- 🐛 **避坑**：
+  - **React 不支持同事件多个 handler**：合并 `onMouseEnter` 同时做 hover state + 背景色变更，不能拆成 `onMouseEnter` + `onMouseEnterCapture`（Capture 后缀是事件捕获阶段，不是双 handler 机制）
+  - **NodePanel 内部 scroll 容器会裁剪 absolute 子元素**：浮卡必须 `createPortal(..., document.body)` 才能显示在 panel 边界之外
+  - **浮卡 `pointer-events: none` 必须保留**：否则会拦截 button 自身的 `onMouseLeave`，导致浮卡闪一下就消失
+- ✅ **build 验证**（待执行）：`tsc -b && vite build` → 0 errors → 1591+ modules → dist hash 变化
+- ✅ **bundle 验证**（待执行）：
+  - `grep "Rocket"` JS bundle → 命中（lucide Rocket SVG 节点在 bundle）
+  - `grep "发版"` → 命中
+  - `grep "使用提示"` → 0 命中（已删除）
+  - `grep "GitBranch"` → 0 命中（已替换为 Rocket）
+  - `grep "v0.3.3"` → 命中
+  - `grep "width: 420"` → 命中（标题加宽）
 
 ### 1.0 今日进展 (2026-07-05 22:30)
 
