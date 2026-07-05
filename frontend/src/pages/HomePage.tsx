@@ -142,11 +142,16 @@ export function WorkflowsPage({
       });
       setLastSelectedId(id);
     } else {
-      // 普通点击：单选并打开
+      // 普通点击：单选（双击才进入编辑）
       setSelectedIds(new Set([id]));
       setLastSelectedId(id);
-      onOpen(workflows.find((w) => w.id === id)!);
     }
+  };
+
+  // 双击行 → 打开编辑器
+  const handleRowDoubleClick = (id: string) => {
+    const wf = workflows.find((w) => w.id === id);
+    if (wf) onOpen(wf);
   };
 
   // ESC 清除选择
@@ -348,6 +353,7 @@ export function WorkflowsPage({
                     wf={wf}
                     selected={selectedIds.has(wf.id)}
                     onRowClick={(e) => handleRowClick(wf.id, e)}
+                    onRowDoubleClick={() => handleRowDoubleClick(wf.id)}
                     onShowLogs={(e) => { e.stopPropagation(); e.preventDefault(); setLogWf(wf); }}
                     onRun={(e) => { e.stopPropagation(); e.preventDefault(); runFromHome(wf.id); }}
                     onShare={(e) => { e.stopPropagation(); e.preventDefault(); shareOne(wf); }}
@@ -476,11 +482,12 @@ export function WorkflowsPage({
 
 /* -------------------- 列表行 -------------------- */
 function WfRow({
-  wf, selected, onRowClick, onShowLogs, onRun, onShare, isRunning, onMenu,
+  wf, selected, onRowClick, onRowDoubleClick, onShowLogs, onRun, onShare, isRunning, onMenu,
 }: {
   wf: Workflow;
   selected: boolean;
   onRowClick: (e: React.MouseEvent) => void;
+  onRowDoubleClick: () => void;
   onShowLogs: (e: React.MouseEvent) => void;
   onRun: (e: React.MouseEvent) => void;
   onShare: (e: React.MouseEvent) => void;
@@ -491,6 +498,7 @@ function WfRow({
   return (
     <div
       onClick={onRowClick}
+      onDoubleClick={onRowDoubleClick}
       onContextMenu={(e) => { e.preventDefault(); onMenu(e); }}
       style={{
         display: 'grid',
