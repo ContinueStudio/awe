@@ -151,7 +151,7 @@ export function BottomToolbar({
         zIndex: 25,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
         gap: 10,
         pointerEvents: 'none',
       }}

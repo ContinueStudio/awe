@@ -1,13 +1,13 @@
-# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.13
+# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.14
 
 ## 1. 文档信息
 * **项目名称**：智能体工作流引擎 (Agentic Workflow Engine - AWE)
-* **文档版本**：v2.13 (编辑模式全屏 + 底部双工具栏 + 节点 hover 详情)
-* **前序版本**：v2.12 (shadcn 主题全局落地 + 左侧导航版)
+* **文档版本**：v2.14 (节点面板精简 + 顶栏 发版/版本历史 + 工具栏居中)
+* **前序版本**：v2.13 (编辑模式全屏 + 底部双工具栏 + 节点 hover 详情)
 * **主要负责人**：Gu Yu (资深全栈架构师)
 * **发布时间**：2026-07-05
 * **文档状态**：已锁定/已落地
-* **配套代码版本**：frontend v0.3.1
+* **配套代码版本**：frontend v0.3.2
 
 ---
 
@@ -120,6 +120,55 @@
 * `src/components/BottomToolbar.tsx`：**完全重写**，按 §1.2.2 双工具栏实现
 * `src/components/NodeRender.tsx`：**重写**，按 §1.2.3 节点只显名字 + hover 浮卡实现
 * 移除旧版 `NodePreview` 子组件（v0.2.9 引入的 config 摘要内嵌渲染），改用 hover tooltip
+
+---
+
+## 1.3 v2.14 增量变更（相对 v2.13）
+
+> **同步规则**：AWE 项目中所有涉及功能、UI/UX 规范、产品信息的代码变更，必须同步更新本 PRD 文档。本节记录 v2.14 相对 v2.13 的全部增量。
+
+### 1.3.1 节点面板：每个节点只显示名称，去掉 description 行
+* **变更前（v2.13）**：`NodePanel` 节点项展示 `类型色块 + 节点名 + 11px 描述文字`，每行高度约 40px，2 列网格，5 大类共 12 个节点占用整页较长，描述文字也常被截断。
+* **变更后（v2.14）**：节点项只显示 `类型色块 + 节点名`，每行高度 32px，更紧凑，12 个节点在 460px 宽面板里一目了然。
+* **视觉效果**：网格密度从 2×6 升级为接近 2×6 但每行更矮，分类标题更突出，搜索结果更直观。
+
+### 1.3.2 画布节点：回退到 v0.3.0 风格，主视图内嵌 config 预览
+* **变更前（v2.13）**：节点只显示 `类型色块 + 名字`，详细信息通过 hover 浮卡弹出。
+* **变更后（v2.14）**：**回退到 v0.3.0 风格** —— 节点主视图直接内嵌 `config 预览`：
+  - webhook：`POST /webhook` badge
+  - http_request：`GET` badge + URL
+  - skill：Python 脚本前 3 行
+  - llm：`gpt-4o-mini` badge + 提示词
+  - sql_query：SQL 单行
+  - mcp_client：MCP 服务名
+  - human_review：审批人
+  - knowledge_search：知识库 ID
+  - end：结束消息
+  - 等等
+* **用户理由**：节点 hover 才看到详情对不熟悉工作流的用户不友好，主视图内嵌预览让用户一眼看清节点作用。
+
+### 1.3.3 顶栏按钮：保存 → 发版，去掉运行，新增版本历史
+* **变更前（v2.13）**：顶栏右侧 `撤销 / 重做 / 保存 / 运行` 四个按钮
+* **变更后（v2.14）**：
+  - **去掉「运行」按钮**：运行入口放在底部工具栏（PRD v2.13），顶栏不再重复
+  - **「保存」改名为「发版」**：语义升级，强调"发版"动作而非"保存草稿"
+    - 图标 `Save` → `GitBranch`（更贴合发版语义）
+  - **新增「版本历史」按钮**（在「发版」左边）：
+    - 次按钮样式（白底 + slate-200 边）
+    - 图标 `History` (lucide)
+    - 占位 toast "版本历史（待接入）"，等待版本管理 API 落地
+
+### 1.3.4 底部工具栏：左右两个工具栏居中排列
+* **变更前（v2.13）**：底部工具栏 `justify-content: space-between`，左工具栏贴左、右工具栏贴右
+* **变更后（v2.14）**：改为 `justify-content: center`，两个工具栏**居中**并排，间距 10px
+* **视觉效果**：用户视线集中在画布正中央，操作更聚焦；避免两个工具栏被分散到画布两端造成视觉割裂
+
+### 1.3.5 配套代码变更
+* `src/components/NodePanel.tsx`：删除节点项的 description 行 div
+* `src/components/NodeRender.tsx`：回退到 v0.3.0 内嵌 config 预览，移除 hover 浮卡
+* `src/App.tsx`：顶栏 import 调整 `Save/Play` → `History/GitBranch`；新增 `onOpenVersionHistory`；去掉运行按钮；保存改发版 + GitBranch 图标
+* `src/components/BottomToolbar.tsx`：`justify-content: space-between` → `center`
+* 版本号 `v0.3.1` → `v0.3.2`（App.tsx 顶栏 + LeftNav.tsx 底部）
 
 ---
 

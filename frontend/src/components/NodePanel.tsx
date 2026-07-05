@@ -172,15 +172,6 @@ export function NodePanel({ onAdd }: Props) {
                         <div style={{ fontSize: 13, color: '#020617', fontWeight: 500, lineHeight: 1.3 }}>
                           {item.name}
                         </div>
-                        <div
-                          style={{
-                            fontSize: 11, color: '#94a3b8',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            marginTop: 1,
-                          }}
-                        >
-                          {item.description || item.type}
-                        </div>
                       </div>
                     </button>
                   );

@@ -1,11 +1,34 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.13**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.14**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.3.1 - 2026-07-05 22:00)
+## 1. 当前进度 (v0.3.2 - 2026-07-05 22:30)
+
+### 1.0 今日进展 (2026-07-05 22:30)
+
+**【本轮】v0.3.2：节点面板精简 + 节点回退 v0.3.0 + 顶栏 发版/版本历史 + 工具栏居中（PRD v2.14）**
+- 🎨 **改动**：
+  1. **NodePanel**：删除节点项的 description 文字行，每行只显示「类型色块 + 名字」，更紧凑
+  2. **NodeRender**：回退到 v0.3.0 风格 — 节点主视图内嵌 config 预览（webhook/http/skill/llm/sql/mcp/human/knowledge/end 等），移除 v2.13 的 hover 浮卡
+  3. **App.tsx 顶栏**：
+     - 「保存」改名为「发版」，图标 `Save` → `GitBranch`
+     - **去掉「运行」按钮**（运行入口已在底部工具栏）
+     - **新增「版本历史」按钮**（在发版左边），次按钮样式 + `History` 图标
+  4. **BottomToolbar**：`justify-content: space-between` → `center`，两个工具栏居中并排（不再靠两端）
+  5. **App.tsx 顶栏 + LeftNav**：版本号 v0.3.1 → v0.3.2
+  6. **PRD 同步**：升级到 v2.14（`AWE_PRD.md` 头部 + §1.3 增量说明）
+- 🐛 **避坑**：
+  - **lucide-react tree-shaking 不完全**：移除 `Save` 和 `Play` import 后 bundle 会更小
+  - **lucide-react 提供 `History` 图标但与 lucide-react 旧名 `History` 冲突**：用 `import { History as HistoryIcon }` 别名避坑
+- ✅ **build 验证**（待执行）：`tsc -b && vite build` → 0 errors → 1591+ modules → dist hash 变化
+- ✅ **bundle 验证**（待执行）：
+  - `grep "发版"` JS bundle → 命中
+  - `grep "版本历史"` → 命中
+  - `grep "保存"` → 0 命中（旧"保存"按钮已替换为"发版"）
+  - `grep "运行"` → 0 命中（顶栏运行按钮去掉，但底部工具栏"运行"还有，正常）
 
 ### 1.0 今日进展 (2026-07-05 22:00)
 

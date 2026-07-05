@@ -13,7 +13,7 @@
  * - 字体 Inter
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Undo2, Redo2, Save, Play, Loader2 } from 'lucide-react';
+import { ArrowLeft, Undo2, Redo2, History as HistoryIcon, Loader2, GitBranch } from 'lucide-react';
 import { api } from '@/lib/api';
 import { LeftNav, NavKey } from './components/LeftNav';
 import { WorkflowsPage as HomePage } from './pages/HomePage';
@@ -235,6 +235,9 @@ export default function App() {
   const onUndo = () => setToast('撤销（待接入）');
   const onRedo = () => setToast('重做（待接入）');
 
+  // 版本历史（占位 - 后续接入版本管理）
+  const onOpenVersionHistory = () => setToast('版本历史（待接入）');
+
   // ---- 当前 wf 用于配置 ----
   const currentWf: Workflow | null = view.kind === 'editor'
     ? { ...view.wf, name: currentName, graph }
@@ -297,7 +300,7 @@ export default function App() {
                   placeholder="工作流名称"
                 />
               </div>
-              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>v0.3.1</span>
+              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>v0.3.2</span>
             </div>
 
             {/* 右：撤销 / 重做 / 保存 / 运行 */}
@@ -319,6 +322,31 @@ export default function App() {
                 <Redo2 size={13} />
               </button>
 
+              {/* 版本历史按钮（次按钮样式） */}
+              <button
+                onClick={onOpenVersionHistory}
+                title="版本历史"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '0 12px', height: 28, borderRadius: 6,
+                  background: '#ffffff', border: '1px solid #e2e8f0', color: '#475569',
+                  fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                  transition: 'border-color 0.15s, color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = '#0f172a';
+                  (e.currentTarget as HTMLButtonElement).style.color = '#020617';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = '#e2e8f0';
+                  (e.currentTarget as HTMLButtonElement).style.color = '#475569';
+                }}
+              >
+                <HistoryIcon size={13} />
+                版本历史
+              </button>
+
+              {/* 发版按钮（次按钮样式，PRD v2.14：保存 → 发版） */}
               <button
                 onClick={handleSave}
                 disabled={isSaving}
@@ -330,7 +358,7 @@ export default function App() {
                   opacity: isSaving ? 0.5 : 1,
                   transition: 'border-color 0.15s, color 0.15s',
                 }}
-                title="保存 (Ctrl+S)"
+                title="发版 (Ctrl+S)"
                 onMouseEnter={(e) => {
                   if (isSaving) return;
                   (e.currentTarget as HTMLButtonElement).style.borderColor = '#0f172a';
@@ -341,31 +369,8 @@ export default function App() {
                   (e.currentTarget as HTMLButtonElement).style.color = '#475569';
                 }}
               >
-                {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                保存
-              </button>
-
-              <button
-                onClick={handleRun}
-                disabled={isRunning}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  padding: '0 12px', height: 28, borderRadius: 6,
-                  background: '#0f172a', border: 'none', color: '#ffffff',
-                  fontSize: 12, fontWeight: 600, cursor: isRunning ? 'wait' : 'pointer',
-                  opacity: isRunning ? 0.5 : 1,
-                  transition: 'background 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  if (isRunning) return;
-                  (e.currentTarget as HTMLButtonElement).style.background = '#1e293b';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = '#0f172a';
-                }}
-              >
-                {isRunning ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} fill="currentColor" />}
-                {isRunning ? '运行中…' : '运行'}
+                {isSaving ? <Loader2 size={13} className="animate-spin" /> : <GitBranch size={13} />}
+                发版
               </button>
             </div>
           </header>

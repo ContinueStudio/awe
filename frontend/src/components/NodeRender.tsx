@@ -1,15 +1,15 @@
 /**
- * 单节点渲染（PRD v2.13 - 2026-07-05）
+ * 单节点渲染（PRD v2.14 - 2026-07-05）
  *
- * 节点只显示名字（标题 + 类型色块），详细信息（def 描述 / config 摘要）
- * 通过 hover tooltip 显示，避免画布拥挤。
+ * 节点主视图（v0.3.0 风格回退）：
+ * - 类型色块 + 名字 + config 预览（内嵌）
+ * - 用户不需要开 Drawer 也能看到 code/path/message 等关键配置
  *
  * 视觉规范（PRD §9.2 严格遵循）：
  * - 白底 + 细边 + rounded-lg + 节点类型色条
  * - 选中态：黑边 + 黑阴影
- * - hover：显示悬浮卡片（def 描述 + config 摘要 + 端口数）
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Copy, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CanvasNode, NodeDefinition } from '@/lib/types';
@@ -41,7 +41,6 @@ export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, on
   const color = COLOR_BAR[def.color] || COLOR_BAR.slate;
   const cfg = (node.config || {}) as Record<string, any>;
   const ref = useRef<HTMLDivElement | null>(null);
-  const [hover, setHover] = useState(false);
 
   useEffect(() => {
     if (!ref.current || !onMeasured) return;
@@ -62,29 +61,27 @@ export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, on
     <div
       ref={ref}
       className={cn('node-card', selected && 'is-selected')}
-      style={{ width: '100%', padding: '10px 12px', cursor: 'pointer', minHeight: 44, boxSizing: 'border-box', position: 'relative' }}
+      style={{ width: '100%', padding: '12px 14px', cursor: 'pointer', minHeight: 64, boxSizing: 'border-box' }}
       data-node-id={node.id}
       data-testid="node-render"
       onPointerDown={onPointerDown}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
     >
-      {/* header：类型色块 + 名字 + 选中态操作 */}
-      <div className="flex items-center">
+      {/* header */}
+      <div className="flex items-center" style={{ marginBottom: 8 }}>
         <div
           style={{
-            width: 22, height: 22, background: color, borderRadius: 5,
+            width: 26, height: 26, background: color, borderRadius: 6,
             display: 'flex', justifyContent: 'center', alignItems: 'center',
-            marginRight: 8, flexShrink: 0,
+            marginRight: 10, flexShrink: 0,
           }}
         >
-          <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>
+          <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>
             {(def.name || node.type).charAt(0)}
           </span>
         </div>
         <span
           style={{
-            fontSize: 13, fontWeight: 600, color: '#020617',
+            fontSize: 14, fontWeight: 600, color: '#020617',
             flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}
         >
@@ -96,88 +93,147 @@ export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, on
               title="复制"
               onPointerDown={(e) => { e.stopPropagation(); onDuplicate?.(); }}
               className="awe-icon-btn"
-              style={{ width: 22, height: 22 }}
+              style={{ width: 24, height: 24 }}
             >
-              <Copy size={11} />
+              <Copy size={12} />
             </button>
             <button
               title="删除"
               onPointerDown={(e) => { e.stopPropagation(); onDelete?.(); }}
               className="awe-icon-btn"
-              style={{ width: 22, height: 22, color: '#dc2626', borderColor: '#fecaca' }}
+              style={{ width: 24, height: 24, color: '#dc2626', borderColor: '#fecaca' }}
             >
-              <Trash2 size={11} />
+              <Trash2 size={12} />
             </button>
           </div>
         )}
       </div>
 
-      {/* hover 弹出 tooltip：详细描述 + config 摘要 */}
-      {hover && !selected && <NodeHoverTip def={def} cfg={cfg} />}
+      <NodePreview kind={node.type} config={cfg} defName={def.name} />
+
+      {(def.inputs.length > 0 || def.outputs.length > 0) && (
+        <div className="flex items-center justify-between text-[10.5px] mt-2 pt-2" style={{ borderTop: '1px solid #f1f5f9', color: '#64748b' }}>
+          <span>{def.inputs.length > 0 ? `${def.inputs.length} 输入` : ''}</span>
+          <span>{def.outputs.length > 0 ? `${def.outputs.length} 输出` : ''}</span>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ---- hover 详细 tooltip ---- */
-function NodeHoverTip({ def, cfg }: { def: NodeDefinition; cfg: Record<string, any> }) {
-  const desc = (cfg.description as string) || def.description || '点击右侧面板配置';
-  const cfgEntries = Object.entries(cfg)
-    .filter(([k]) => k !== 'description')
-    .slice(0, 4);
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: '100%',
-        top: 0,
-        marginLeft: 8,
-        zIndex: 50,
-        width: 240,
-        maxWidth: 240,
-        background: '#ffffff',
-        border: '1px solid #e2e8f0',
-        borderRadius: 8,
-        boxShadow: '0 6px 24px rgba(15, 23, 42, 0.12)',
-        padding: '10px 12px',
-        fontSize: 12,
-        color: '#020617',
-        pointerEvents: 'none',
-      }}
-    >
-      <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500, marginBottom: 2 }}>
-        {def.category} · {def.type}
-      </div>
-      <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.5, marginBottom: cfgEntries.length > 0 ? 8 : 0 }}>
-        {desc}
-      </div>
-      {cfgEntries.length > 0 && (
-        <>
-          <div style={{ height: 1, background: '#e2e8f0', margin: '6px 0' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {cfgEntries.map(([k, v]) => {
-              const display = typeof v === 'string' ? v : JSON.stringify(v);
-              const truncated = display.length > 60 ? display.slice(0, 60) + '…' : display;
-              return (
-                <div key={k} style={{ display: 'flex', gap: 6, fontSize: 11 }}>
-                  <span style={{ color: '#94a3b8', flexShrink: 0 }}>{k}</span>
-                  <span style={{ color: '#020617', fontFamily: "'JetBrains Mono', 'SF Mono', monospace", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {truncated}
-                  </span>
-                </div>
-              );
-            })}
+function NodePreview({ kind, config, defName }: { kind: string; config: Record<string, any>; defName: string }) {
+  const labelStyle: React.CSSProperties = { fontSize: 11, color: '#64748b', marginBottom: 2, fontWeight: 500 };
+  const valueStyle: React.CSSProperties = { fontSize: 12, color: '#020617', fontFamily: "'JetBrains Mono', 'SF Mono', monospace" };
+
+  switch (kind) {
+    case 'webhook':
+      return (
+        <div>
+          <div style={labelStyle}>路径</div>
+          <code className="awe-badge awe-badge-success" style={{ fontSize: 11 }}>
+            {(config.method as string) || 'POST'} {(config.path as string) || '/webhook'}
+          </code>
+        </div>
+      );
+    case 'http_request':
+      return (
+        <div>
+          <span className="awe-badge" style={{ fontSize: 11, marginBottom: 4 }}>{(config.method as string) || 'GET'}</span>
+          <div style={{ ...labelStyle, marginTop: 6 }}>URL</div>
+          <div style={{ ...valueStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {(config.url as string) || '(未设置)'}
           </div>
-        </>
-      )}
-      {(def.inputs.length > 0 || def.outputs.length > 0) && (
-        <>
-          <div style={{ height: 1, background: '#e2e8f0', margin: '6px 0' }} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b' }}>
-            {def.inputs.length > 0 && <span>输入：{def.inputs.length}</span>}
-            {def.outputs.length > 0 && <span>输出：{def.outputs.length}</span>}
+        </div>
+      );
+    case 'skill':
+      return (
+        <div>
+          <div style={labelStyle}>Python 脚本</div>
+          <div className="awe-code" style={{ padding: '6px 8px', borderRadius: 6, maxHeight: 48, overflow: 'hidden', fontSize: 11, lineHeight: 1.4 }}>
+            {config.code ? (config.code as string).split('\n').slice(0, 3).join('\n') : '(空)'}
           </div>
-        </>
-      )}
-    </div>
-  );
+        </div>
+      );
+    case 'llm':
+      return (
+        <div>
+          <span className="awe-badge" style={{ fontSize: 11, marginRight: 6 }}>{(config.model as string) || 'gpt-4o-mini'}</span>
+          <div style={labelStyle}>提示词</div>
+          <div style={{ ...valueStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {(config.prompt as string) || '(空)'}
+          </div>
+        </div>
+      );
+    case 'intent_router':
+    case 'branch':
+      return (
+        <div>
+          <div style={labelStyle}>条件</div>
+          <code className="awe-badge" style={{ fontSize: 11 }}>
+            {(config.expression as string) || 'True'}
+          </code>
+        </div>
+      );
+    case 'loop':
+      return (
+        <div>
+          <div style={labelStyle}>数据源</div>
+          <code className="awe-badge" style={{ fontSize: 11 }}>
+            {(config.items_expr as string) || '[]'}
+          </code>
+        </div>
+      );
+    case 'sql_query':
+      return (
+        <div>
+          <div style={labelStyle}>SQL</div>
+          <div className="awe-code" style={{ padding: '6px 8px', borderRadius: 6, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {(config.sql as string) || '(空)'}
+          </div>
+        </div>
+      );
+    case 'mcp_client':
+      return (
+        <div>
+          <div style={labelStyle}>MCP 服务</div>
+          <span style={valueStyle}>{(config.server as string) || '(未设置)'}</span>
+        </div>
+      );
+    case 'human_review':
+      return (
+        <div>
+          <div style={labelStyle}>审批人</div>
+          <span style={valueStyle}>{(config.assignee as string) || '(未指定)'}</span>
+        </div>
+      );
+    case 'knowledge_search':
+      return (
+        <div>
+          <div style={labelStyle}>知识库</div>
+          <span style={valueStyle}>{(config.kb_id as string) || '(未指定)'}</span>
+        </div>
+      );
+    case 'end':
+      return (
+        <div>
+          <div style={labelStyle}>结束消息</div>
+          <div style={{ ...valueStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {(config.message as string) || '(空)'}
+          </div>
+        </div>
+      );
+    case 'rewrite':
+      return (
+        <div>
+          <div style={labelStyle}>改写风格</div>
+          <span style={valueStyle}>{(config.style as string) || 'concise'}</span>
+        </div>
+      );
+    default:
+      return (
+        <div style={{ fontSize: 12, color: '#64748b' }}>
+          {(config.description as string) || '点击右侧面板配置'}
+        </div>
+      );
+  }
 }
