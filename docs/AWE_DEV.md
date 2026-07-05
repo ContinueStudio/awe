@@ -1,11 +1,41 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.19**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.20**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.3.7 - 2026-07-06)
+## 1. 当前进度 (v0.3.7a - 2026-07-06)
+
+### 1.0 今日进展 (2026-07-06 20:30)
+
+**【本轮】v0.3.7a：工作流列表交互重构 (PRD v2.20)**
+
+- ✅ **重构背景**：v0.3.7 的"复选框列 + 顶部批量操作栏"反馈视觉占用大，对单行操作形成干扰。改用键控多选。
+
+- ✅ **代码变更**：`HomePage.tsx`
+  - 移除：表头全选复选框列、每行复选框、顶部"取消选择"和"删除选中(N)"按钮
+  - 新增：`handleRowClick(id, e)` 统一处理名称点击
+    - 普通点击 → 选中并打开编辑器
+    - Shift + 点击 → 范围选择（从 lastSelectedId 到当前 id）
+    - Ctrl/Cmd + 点击 → 多选切换
+  - 新增键控交互：Delete/Backspace → 批量删除、ESC → 清除选择
+  - 新增状态：`lastSelectedId` 记录锚点
+
+- 🐛 **修复 405**：`POST /api/workflows/batch-delete` 后端端点已存在但**没重启后端**，所以测试报 405。重启后端后端点正常返回 `{"ok":true,"deleted":0,"total":0}`
+
+- 📋 **构建结果**：
+  - TypeScript 编译零错误
+  - Vite 生产构建：1592 modules / 244.74 kB / gzip 74.34 kB
+  - 新 hash：`index-DU3FqW2H.js`
+
+- 📋 **版本号**：v0.3.7 → v0.3.7a，PRD v2.19 → v2.20
+
+- 🐛 **避坑**（v0.3.7a 沉淀）：
+  - Shift 范围选择必须有锚点（lastSelectedId），否则只是单点切换
+  - 列表 Delete 键 vs 画布 Delete 键不冲突：监听时检查 target.tagName
+  - 后端新增端点后必须重启 uvicorn 才能生效（`reload=True` 模式除外）
+  - grid 列数从 5 列回到 4 列以保持与 v2.18 视觉一致
 
 ### 1.0 今日进展 (2026-07-06 19:30)
 
