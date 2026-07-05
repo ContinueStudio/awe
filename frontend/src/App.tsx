@@ -561,14 +561,89 @@ export default function App() {
       ) : (
         // 其它页面：左 240 导航 + 右内容
         // 整层背景用 #f8fafc（侧栏色），与 WebView2 边框色一致 → 消除"顶部黑色边框"
-        <div style={{ display: 'flex', height: '100%', width: '100%', background: '#f8fafc' }}>
-          <LeftNav active={navKey} onChange={navigate} health={health} />
-          <main style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden', background: '#ffffff' }}>
-            {renderContent()}
-          </main>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: '#f8fafc' }}>
+          {/* v2.27：frameless 模式下的自定义标题栏 */}
+          <CustomTitleBar />
+          <div style={{ display: 'flex', flex: 1, minHeight: 0, width: '100%' }}>
+            <LeftNav active={navKey} onChange={navigate} health={health} />
+            <main style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden', background: '#ffffff' }}>
+              {renderContent()}
+            </main>
+          </div>
         </div>
       )}
     </>
+  );
+}
+
+/* ---------- 自定义标题栏 (v2.27 frameless 模式) ----------
+   pywebview 6.x 没有 title_bar_color / icon 参数
+   → 用 frameless=True 去掉原生 chrome
+   → 前端自绘标题栏：slate-50 背景 + 拖动区 + 最小/最大/关闭
+   → 通过 window.pywebview.api.{minimize,close}() 与 Python 通讯 */
+function CustomTitleBar() {
+  const inPywebview = typeof (window as any).pywebview !== 'undefined';
+  const api = inPywebview ? (window as any).pywebview.api : null;
+
+  // 整栏可拖动（PyWebview frameless 模式）
+  // v2.28：用 CSS class 替代 React style，避免 -webkit-app-region 类型问题
+  const baseStyle: React.CSSProperties = {
+    height: 32,
+    background: '#f8fafc',
+    borderBottom: '1px solid #e2e8f0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '0 8px 0 12px',
+    flexShrink: 0,
+  };
+
+  return (
+    <div className="awe-titlebar" style={baseStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#64748b' }}>
+        <span style={{ fontWeight: 600, color: '#020617' }}>AWE</span>
+        <span style={{ color: '#cbd5e1' }}>·</span>
+        <span>智能体工作流引擎</span>
+      </div>
+
+      <div className="awe-titlebar-no-drag" style={{ display: 'flex' }}>
+        <button
+          onClick={() => api?.minimize?.()}
+          title="最小化"
+          style={{
+            width: 32, height: 32, border: 'none', background: 'transparent',
+            color: '#64748b', cursor: 'pointer', display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+          }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#e2e8f0')}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'transparent')}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" /></svg>
+        </button>
+        <button
+          onClick={() => api?.close_window?.()}
+          title="关闭"
+          style={{
+            width: 32, height: 32, border: 'none', background: 'transparent',
+            color: '#64748b', cursor: 'pointer', display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = '#dc2626';
+            (e.currentTarget as HTMLButtonElement).style.color = '#ffffff';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+            (e.currentTarget as HTMLButtonElement).style.color = '#64748b';
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12">
+            <line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5" />
+            <line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+        </button>
+      </div>
+    </div>
   );
 }
 

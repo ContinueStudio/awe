@@ -1,8 +1,9 @@
-# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.26
+# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.28
 
 ## 1. 文档信息
 * **项目名称**：智能体工作流引擎 (Agentic Workflow Engine - AWE)
-* **文档版本**：v2.26 (start.bat GBK 编码修复 + 必测后发)
+* **文档版本**：v2.28 (禁用文字选中 + 标题栏可拖动)
+* **前序版本**：v2.26 (start.bat GBK 编码修复 + 必测后发)
 * **前序版本**：v2.25 (一键启动脚本默认走桌面窗口模式)
 * **前序版本**：v2.24 (窗口标题缩短 + 顶部边框配色统一)
 * **前序版本**：v2.23 (桌面窗口模式: --window 参数 + PyWebview 独立窗口)
@@ -13,7 +14,7 @@
 * **主要负责人**：Gu Yu (资深全栈架构师)
 * **发布时间**：2026-07-06
 * **文档状态**：已锁定/已落地
-* **配套代码版本**：frontend v0.3.7e + desktop v0.1.1 + launcher v2.25
+* **配套代码版本**：frontend v0.3.7h + desktop v0.1.2 + launcher v2.25.1
 * **前序版本**：v2.18 (节点 4 角黑点彻底根因修复 + 顶栏 lawe 风格化 + BottomToolbar flex 居中)
 * **主要负责人**：Gu Yu (资深全栈架构师)
 * **发布时间**：2026-07-06
@@ -688,6 +689,28 @@
 * **修改 start.bat 后必须实测**：cmd 脚本无 lint，错了只能跑起来看
 * **set 命令不能在 if 块内部分赋值**：提外层
 * **批处理文件不要写中文**：GBK 默认编码会导致乱码
+
+---
+
+## 1.16 v2.28 增量变更（相对 v2.27）
+- **版本号**：PRD v2.28 / frontend v0.3.7h / desktop v0.1.2 / 2026-07-06
+- **背景**：frameless 模式启用后两个回归 bug。
+
+### 1.16.1 Bug 1：整个界面文字处于可选中状态
+* **根因**：浏览器默认所有元素都允许文字选中
+* **修复**：`index.css` 基础样式 `*` 加上 `user-select: none`，例外只放 input/textarea/[contenteditable]
+* **效果**：标题、按钮、表格等不可选中；输入框仍可选中（正常工作）
+
+### 1.16.2 Bug 2：标题栏点击无法拖动窗口
+* **根因**：React `style` 属性传入 `WebkitAppRegion: 'drag'` 会被 React 编译时类型擦除，且 TypeScript 类型中无此字段
+* **修复**：改用 CSS class `.awe-titlebar { -webkit-app-region: drag; }` 写在 `index.css`，避开类型/序列化问题
+* **按钮区**：`.awe-titlebar-no-drag { -webkit-app-region: no-drag; }` 确保按钮仍可点击
+* **效果**：标题栏可拖动；最小/关闭按钮仍可点击
+
+### 1.16.3 避坑沉淀
+* **WebView2 上 CSS class 比 React style 更可靠**：自定义 CSS 属性（如 `-webkit-app-region`）走 class 不会被 React 转换破坏
+* **frameless 模式必加 `user-select: none`**：否则选中文字会破坏 UI 体验
+* **TypeScript 类型擦除**：写 `as any` 不够，得用 className 才稳
 
 ---
 

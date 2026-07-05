@@ -28,7 +28,27 @@
   }
   *, *::before, *::after {
     box-sizing: border-box;
+    /* v2.28：除输入控件外，禁用文字选中（更像桌面应用） */
+    user-select: none;
+    -webkit-user-select: none;
   }
+  /* 允许选中的元素：输入框、文本域、节点内容区 */
+  input, textarea, [contenteditable], .allow-select {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+}
+
+/* v2.28：PyWebview frameless 窗口拖动区
+   - 用 CSS 类更稳定（React camelCase `WebkitAppRegion` 在 TS 类型下会失真）
+   - 整栏 drag，按钮 no-drag */
+.awe-titlebar {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+.awe-titlebar-no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 /* -------- 主题变量（shadcn slate） -------- */

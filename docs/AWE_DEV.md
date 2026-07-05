@@ -1,11 +1,24 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.26**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.28**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.3.7g - 2026-07-06)
+## 1. 当前进度 (v0.3.7h - 2026-07-06)
+
+### 1.0 今日进展 (2026-07-06 22:25)
+
+**【本轮】v0.3.7h：禁用文字选中 + 标题栏可拖动 (PRD v2.28)**
+
+- 🐛 **Bug 1**: 文字全部可选中（"像网页上的文字"）
+  - 修复：`index.css` 加 `* { user-select: none }`，例外只放 input/textarea
+- 🐛 **Bug 2**: 标题栏点击无法拖动
+  - 根因：React `WebkitAppRegion: 'drag'` style 被 TS 类型擦除
+  - 修复：改用 CSS class `.awe-titlebar { -webkit-app-region: drag }` 写在 index.css
+- 📋 **构建**: 246.98 kB / gzip 74.76 kB, 新 hash `index-Jtj7S9Ug.js`
+- 📋 **版本号**: PRD v2.27 → v2.28, DEV v0.3.7g → v0.3.7h
+- 💡 **沉淀**: WebView2 上 CSS class 比 React style 更可靠，避 TS 类型擦除
 
 ### 1.0 今日进展 (2026-07-06 22:00)
 
