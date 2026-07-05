@@ -1,11 +1,27 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.28**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.29**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.3.7h - 2026-07-06)
+## 1. 当前进度 (v0.3.7i - 2026-07-06)
+
+### 1.0 今日进展 (2026-07-06 22:30)
+
+**【本轮】v0.3.7i：WebView2 拖动用 pywebview DRAG_REGION_SELECTOR (PRD v2.29)**
+
+- 🐛 **Bug**: v2.28 用 `.awe-titlebar { -webkit-app-region: drag }` 后，标题栏**仍然不能拖动**
+- 🐛 **根因**: **WebView2 不支持 `-webkit-app-region`**（只对 Electron/NW.js/部分 WebKit 生效）
+- ✅ **修复**:
+  - `desktop/launch_window.py` 加 `webview.DRAG_REGION_SELECTOR = ".awe-titlebar"`
+  - pywebview customize.js 在 mousedown 时调用 pywebviewMoveWindow API 移动窗口
+  - 走 Python 端处理，绕开浏览器层限制
+  - `.awe-titlebar` 删掉 `-webkit-app-region`，只留 `user-select: none`
+- 💡 **避坑**:
+  - WebView2 不支持 `-webkit-app-region`
+  - pywebview frameless 拖动靠 Python 端
+- 📋 **版本号**: PRD v2.28 → v2.29, DEV v0.3.7h → v0.3.7i
 
 ### 1.0 今日进展 (2026-07-06 22:25)
 

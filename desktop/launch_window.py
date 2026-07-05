@@ -58,6 +58,11 @@ def main() -> int:
         background_color="#f8fafc",  # slate-50
     )
 
+    # v2.28.1：WebView2 上 -webkit-app-region: drag 不生效
+    # 改用 pywebview 的 DRAG_REGION_SELECTOR 机制（customize.js 在 mousedown 时
+    # 调用 pywebviewMoveWindow API 来移动窗口）
+    webview.DRAG_REGION_SELECTOR = ".awe-titlebar"
+
     # 暴露窗口控制 API 给前端（pywebview.expose 只接受函数）
     def minimize():
         window.minimize()

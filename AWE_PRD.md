@@ -1,8 +1,9 @@
-# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.28
+# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.29
 
 ## 1. 文档信息
 * **项目名称**：智能体工作流引擎 (Agentic Workflow Engine - AWE)
-* **文档版本**：v2.28 (禁用文字选中 + 标题栏可拖动)
+* **文档版本**：v2.29 (WebView2 拖动用 pywebview DRAG_REGION_SELECTOR)
+* **前序版本**：v2.28 (禁用文字选中 + 标题栏可拖动)
 * **前序版本**：v2.26 (start.bat GBK 编码修复 + 必测后发)
 * **前序版本**：v2.25 (一键启动脚本默认走桌面窗口模式)
 * **前序版本**：v2.24 (窗口标题缩短 + 顶部边框配色统一)
@@ -14,7 +15,7 @@
 * **主要负责人**：Gu Yu (资深全栈架构师)
 * **发布时间**：2026-07-06
 * **文档状态**：已锁定/已落地
-* **配套代码版本**：frontend v0.3.7h + desktop v0.1.2 + launcher v2.25.1
+* **配套代码版本**：frontend v0.3.7h + desktop v0.1.3 + launcher v2.25.1
 * **前序版本**：v2.18 (节点 4 角黑点彻底根因修复 + 顶栏 lawe 风格化 + BottomToolbar flex 居中)
 * **主要负责人**：Gu Yu (资深全栈架构师)
 * **发布时间**：2026-07-06
@@ -711,6 +712,32 @@
 * **WebView2 上 CSS class 比 React style 更可靠**：自定义 CSS 属性（如 `-webkit-app-region`）走 class 不会被 React 转换破坏
 * **frameless 模式必加 `user-select: none`**：否则选中文字会破坏 UI 体验
 * **TypeScript 类型擦除**：写 `as any` 不够，得用 className 才稳
+
+---
+
+## 1.17 v2.29 增量变更（相对 v2.28）
+- **版本号**：PRD v2.29 / desktop v0.1.3 / 2026-07-06
+- **背景**：v2.28 改用 `.awe-titlebar { -webkit-app-region: drag }` 后，标题栏**仍然不能拖动**。
+
+### 1.17.1 根因（关键）
+* WebView2（Edge 引擎）**不支持 CSS `-webkit-app-region: drag`**
+* 该属性只对 Electron / NW.js / 部分 WebKit 浏览器生效
+* 在 WebView2 上需要走 pywebview 自家的 `DRAG_REGION_SELECTOR` 机制
+
+### 1.17.2 pywebview 拖动机制
+* pywebview 通过 `customize.js` 在 `mousedown` 时调用 `pywebviewMoveWindow` API
+* `webview.DRAG_REGION_SELECTOR = ".awe-titlebar"` 告诉 customize.js 哪些元素可拖
+* 走的是 Python 端处理，绕开浏览器层限制
+
+### 1.17.3 变更
+* **`desktop/launch_window.py`**：加 `webview.DRAG_REGION_SELECTOR = ".awe-titlebar"`
+* **`.awe-titlebar`** CSS 类：删掉 `-webkit-app-region: drag`（无用），保留 `user-select: none`
+* **`.awe-titlebar-no-drag`** CSS 类：删掉（pywebview 自动只对选择器内的元素生效）
+
+### 1.17.4 避坑沉淀
+* **WebView2 不支持 `-webkit-app-region`**：老大常用但不要直接相信
+* **pywebview frameless 拖动靠 Python 端**：走 customize.js + jsApiCallback
+* **不要混用两套拖动机制**：要么 CSS `-webkit-app-region`（仅 Electron/NW.js），要么 pywebview DRAG_REGION_SELECTOR
 
 ---
 

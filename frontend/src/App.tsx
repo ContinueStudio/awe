@@ -606,7 +606,7 @@ function CustomTitleBar() {
         <span>智能体工作流引擎</span>
       </div>
 
-      <div className="awe-titlebar-no-drag" style={{ display: 'flex' }}>
+      <div style={{ display: 'flex' }}>
         <button
           onClick={() => api?.minimize?.()}
           title="最小化"

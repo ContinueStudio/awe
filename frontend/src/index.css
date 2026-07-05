@@ -39,16 +39,13 @@
   }
 }
 
-/* v2.28：PyWebview frameless 窗口拖动区
-   - 用 CSS 类更稳定（React camelCase `WebkitAppRegion` 在 TS 类型下会失真）
-   - 整栏 drag，按钮 no-drag */
+/* v2.29：PyWebview frameless 窗口拖动
+   - v2.28 用过 `-webkit-app-region: drag` 但 WebView2 不支持
+   - 现在走 pywebview.DRAG_REGION_SELECTOR=".awe-titlebar" 机制
+   - CSS 类只保留 user-select: none 避免文字选中 */
 .awe-titlebar {
-  -webkit-app-region: drag;
-  app-region: drag;
-}
-.awe-titlebar-no-drag {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* -------- 主题变量（shadcn slate） -------- */
