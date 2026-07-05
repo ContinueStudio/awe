@@ -1,13 +1,13 @@
-# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.15
+# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.16
 
 ## 1. 文档信息
 * **项目名称**：智能体工作流引擎 (Agentic Workflow Engine - AWE)
-* **文档版本**：v2.15 (节点顶部渐变 + 去使用提示 + NodePanel hover 简介 + 发版主按钮 + 标题加宽)
-* **前序版本**：v2.14 (节点面板精简 + 顶栏 发版/版本历史 + 工具栏居中)
+* **文档版本**：v2.16 (节点选中态去黑框 + 圆角 10 + 渐变调淡)
+* **前序版本**：v2.15 (节点顶部渐变 + 去使用提示 + NodePanel hover 简介 + 发版主按钮 + 标题加宽)
 * **主要负责人**：Gu Yu (资深全栈架构师)
 * **发布时间**：2026-07-05
 * **文档状态**：已锁定/已落地
-* **配套代码版本**：frontend v0.3.3
+* **配套代码版本**：frontend v0.3.4
 
 ---
 
@@ -233,6 +233,48 @@
   - 节点 button `onMouseEnter` / `onMouseLeave` 合并 handler（同时更新 hover state 和背景色）
   - 末尾添加 portal 浮卡（条件 `hoveredDef && hoverRect`）
 * 版本号 `v0.3.2` → `v0.3.3`（App.tsx 顶栏 + LeftNav.tsx 底部）
+
+---
+
+## 1.5 v2.16 增量变更（相对 v2.15）
+
+> **同步规则**：AWE 项目中所有涉及功能、UI/UX 规范、产品信息的代码变更，必须同步更新本 PRD 文档。本节记录 v2.16 相对 v2.15 的全部增量。
+
+### 1.5.1 节点选中态：去掉 2px 黑色外发光，4 角不再像被黑框包住
+* **变更前（v2.15）**：`.node-card.is-selected` 选中态 box-shadow 为 `0 0 0 2px #0f172a, var(--shadow-md)` —— 在节点外侧画了 2px 纯黑外环，4 个圆角被 2px 厚的黑色包住，视觉上"4 个角是黑色的"，非常硬。
+* **变更后（v2.16）**：
+  - 去掉 2px 黑色外发光
+  - 改用 `0 0 0 1px #0f172a, 0 1px 3px rgba(15, 23, 42, 0.10)` —— 1px 极细黑环 + 极轻阴影
+  - 视觉：节点选中后边框变黑，但外侧 4 角只露 1px 细边，不像被黑框"框住"
+* **用户反馈**："选中节点之后，节点的4个角是黑色的"——直接对应本次修复
+* **保持选中态识别度**：border-color 仍然 `#0f172a`（slate-950 纯黑），用户一眼能看出选中
+
+### 1.5.2 节点圆角：8px → 10px（参考 lawe 风格但更克制）
+* **变更前（v2.15）**：`.node-card` border-radius 8px（shadcn 默认 rounded-lg）
+* **变更后（v2.16）**：border-radius 10px
+* **参考 lawe**：lawe_project 用 12px（`rounded-xl` 风格）
+* **AWE 选择 10px 的理由**：
+  - 比 shadcn 8px 更柔和不显冷硬
+  - 比 lawe 12px 更克制，符合 AWE「白底黑字专业工具」定位（lawe 是 12px 偏向消费级）
+  - 配合 1px 细选中边，4 角过渡自然
+
+### 1.5.3 节点顶部渐变：颜色调淡（12%/4% → 6%/2%）
+* **变更前（v2.15）**：`linear-gradient(180deg, ${color}1f 0%, ${color}0a 18%, #ffffff 42%)`
+  - 1f = 12% alpha / 0a = 4% alpha
+  - 顶部染色偏重，整个顶部都带类型色
+* **变更后（v2.16）**：`linear-gradient(180deg, ${color}0f 0%, ${color}06 18%, #ffffff 50%)`
+  - 0f = 6% alpha / 06 = 2% alpha
+  - 顶部 6% 染色（只有非常淡的色相透出），50% 处已完全白底
+  - 视觉：节点看上去"白底为主 + 一点点色相"，更克制专业
+* **参考 lawe**：lawe_project 用 `linear-gradient(180deg, #eff1fb 0%, #fcfcfd 40%, #ffffff 100%)` —— 浅蓝紫色（接近白），也走"非常淡的渐变"路线
+* **AWE 差异化**：保留 6 类类型色相（emerald/blue/amber/sky/rose/slate）让用户能区分节点类型，但只露"一点点"色相
+
+### 1.5.4 配套代码变更
+* `src/index.css`：
+  - `.node-card` border-radius 8px → 10px
+  - `.node-card.is-selected` box-shadow `0 0 0 2px #0f172a` → `0 0 0 1px #0f172a, 0 1px 3px rgba(15,23,42,0.10)`
+* `src/components/NodeRender.tsx`：内联 style 的 background gradient 颜色 alpha 调淡（`1f/0a/42%` → `0f/06/50%`）
+* 版本号 `v0.3.3` → `v0.3.4`（App.tsx 顶栏 + LeftNav.tsx 底部）
 
 ---
 

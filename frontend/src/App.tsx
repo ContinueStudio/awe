@@ -308,7 +308,7 @@ export default function App() {
                   placeholder="工作流名称"
                 />
               </div>
-              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>v0.3.3</span>
+              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>v0.3.4</span>
             </div>
 
             {/* 右：撤销 / 重做 / 保存 / 运行 */}

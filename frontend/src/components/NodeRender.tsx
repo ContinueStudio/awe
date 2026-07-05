@@ -67,8 +67,8 @@ export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, on
         cursor: 'pointer',
         minHeight: 64,
         boxSizing: 'border-box',
-        // 顶部一点点类型色相渐变（v0.3.0 风格），向下迅速过渡到纯白
-        background: `linear-gradient(180deg, ${color}1f 0%, ${color}0a 18%, #ffffff 42%)`,
+        // 顶部一点点类型色相渐变（v0.3.4 调淡：6% / 2% alpha，50% 处已完全白底）
+        background: `linear-gradient(180deg, ${color}0f 0%, ${color}06 18%, #ffffff 50%)`,
       }}
       data-node-id={node.id}
       data-testid="node-render"

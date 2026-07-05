@@ -1,11 +1,37 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.15**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.16**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.3.3 - 2026-07-05 23:50)
+## 1. 当前进度 (v0.3.4 - 2026-07-06 00:15)
+
+### 1.0 今日进展 (2026-07-06 00:15)
+
+**【本轮】v0.3.4：节点选中态去黑框 + 圆角 10 + 顶部渐变调淡（PRD v2.16）**
+- 🎨 **改动**：
+  1. **index.css `.node-card.is-selected` 修复选中态黑框问题**：
+     - 变更前：box-shadow `0 0 0 2px #0f172a` — 节点外侧 2px 厚黑环，4 角像被黑框包住
+     - 变更后：box-shadow `0 0 0 1px #0f172a, 0 1px 3px rgba(15,23,42,0.10)` — 1px 极细黑环 + 极轻阴影
+  2. **节点圆角 8px → 10px**（参考 lawe 12 但更克制，符合 AWE 专业工具定位）
+  3. **节点顶部渐变调淡**：
+     - 变更前：`linear-gradient(180deg, ${color}1f 0%, ${color}0a 18%, #ffffff 42%)` — 12%/4% alpha
+     - 变更后：`linear-gradient(180deg, ${color}0f 0%, ${color}06 18%, #ffffff 50%)` — 6%/2% alpha
+     - 视觉：白底为主 + 一点点色相，更克制专业
+  4. **版本号 v0.3.3 → v0.3.4**（App.tsx 顶栏 + LeftNav.tsx 底部）
+  5. **PRD 同步**：升级到 v2.16（`AWE_PRD.md` 头部 + §1.5 增量说明）
+- 🐛 **避坑**：
+  - **选中态 box-shadow 用 `0 0 0 Npx` 形成实心环**：N 越大 4 角越像被黑框包住，1px 是甜点
+  - **节点 background gradient 不要 alpha 太重**：超过 10% alpha 顶部就会"染色一片"，6% 是上限
+  - **圆角 8px vs 10px vs 12px**：8 太硬、12 太消费级、10 是工具型产品甜点
+- ✅ **build 验证**（待执行）：`tsc -b && vite build` → 0 errors → 1591+ modules → dist hash 变化
+- ✅ **bundle 验证**（待执行）：
+  - `grep "v0.3.4"` JS bundle → 命中
+  - `grep "0 0 0 1px #0f172a"` CSS bundle → 命中（新选中态）
+  - `grep "0 0 0 2px #0f172a"` CSS bundle → 0 命中（已去除）
+  - `grep "0f 0%, .*06 18%"` → 命中（新渐变）
+  - `grep "1f 0%, .*0a 18%"` → 0 命中（旧渐变已去除）
 
 ### 1.0 今日进展 (2026-07-05 23:50)
 

@@ -107,7 +107,7 @@
 .node-card {
   background: #ffffff;
   border: 1px solid var(--border);
-  border-radius: 8px; /* shadcn rounded-lg */
+  border-radius: 10px; /* 比 shadcn 8 略圆，参考 lawe 12 但更克制 */
   box-shadow: var(--shadow-sm);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -115,9 +115,11 @@
   border-color: #cbd5e1;
   box-shadow: var(--shadow);
 }
+/* 选中态：去掉了 2px 黑色 box-shadow（v0.3.4 修复 4 角像被黑框包住的视觉问题）
+   改用 1px 极细黑环 + 柔和阴影，节点 4 角不再"被黑框包住" */
 .node-card.is-selected {
   border-color: #0f172a;
-  box-shadow: 0 0 0 2px #0f172a, var(--shadow-md);
+  box-shadow: 0 0 0 1px #0f172a, 0 1px 3px rgba(15, 23, 42, 0.10);
 }
 
 /* -------- 图标按钮（slate 风格） -------- */
