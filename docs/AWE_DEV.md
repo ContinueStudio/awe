@@ -1,11 +1,23 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.21**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.22**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.3.7b - 2026-07-06)
+## 1. 当前进度 (v0.3.7c - 2026-07-06)
+
+### 1.0 今日进展 (2026-07-06 21:00)
+
+**【本轮】v0.3.7c：右键菜单智能删除 (PRD v2.22)**
+
+- 🐛 **Bug**: v2.20-v2.21 引入键控多选后，右键菜单"删除"仍调 `deleteOne(menu.id)` → 多选状态下只删一条
+- ✅ **代码变更**：`HomePage.tsx`
+  - 新增 `smartDelete(primaryId)`：右键时如果 primaryId 在 selectedIds 中 → 走 `batchDelete()`
+  - 菜单文本动态化：单选 `删除` / 多选 `删除选中 (N)`
+  - fallback：右键未选中行 → 走 `deleteOne(primaryId)` 单删
+- 📋 **构建**：1592 modules / 244.91 kB / gzip 74.41 kB
+- 📋 **版本号**：v0.3.7b → v0.3.7c，PRD v2.21 → v2.22
 
 ### 1.0 今日进展 (2026-07-06 20:50)
 

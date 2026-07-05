@@ -100,6 +100,17 @@ export function WorkflowsPage({
     setWorkflows(d.workflows as any);
   };
 
+  // 智能删除：多选时按选择删除；右键菜单则按 menu.id 扩展为选中范围
+  const smartDelete = async (primaryId: string) => {
+    setMenu(null);
+    // 如果当前 primaryId 已在 selectedIds 中 → 沿用 selectedIds；否则退化为单删
+    if (selectedIds.has(primaryId) && selectedIds.size > 1) {
+      await batchDelete();
+    } else {
+      await deleteOne(primaryId);
+    }
+  };
+
   const batchDelete = async () => {
     if (selectedIds.size === 0) return;
     if (!confirm(`确定删除选中的 ${selectedIds.size} 个工作流？此操作不可恢复。`)) return;
@@ -425,7 +436,12 @@ export function WorkflowsPage({
             if (wf) shareOne(wf);
           }} />
           <div style={{ height: 1, background: '#e2e8f0', margin: '4px 0' }} />
-          <MenuItem icon={Trash2} label="删除" danger onClick={() => deleteOne(menu.id)} />
+          <MenuItem
+            icon={Trash2}
+            label={selectedIds.size > 1 ? `删除选中 (${selectedIds.size})` : '删除'}
+            danger
+            onClick={() => smartDelete(menu.id)}
+          />
         </div>
       )}
 
