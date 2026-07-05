@@ -1,8 +1,9 @@
-# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.25
+# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.26
 
 ## 1. 文档信息
 * **项目名称**：智能体工作流引擎 (Agentic Workflow Engine - AWE)
-* **文档版本**：v2.25 (一键启动脚本默认走桌面窗口模式)
+* **文档版本**：v2.26 (start.bat GBK 编码修复 + 必测后发)
+* **前序版本**：v2.25 (一键启动脚本默认走桌面窗口模式)
 * **前序版本**：v2.24 (窗口标题缩短 + 顶部边框配色统一)
 * **前序版本**：v2.23 (桌面窗口模式: --window 参数 + PyWebview 独立窗口)
 * **前序版本**：v2.22 (右键菜单智能删除：多选状态按批量处理)
@@ -663,6 +664,30 @@
 | `start.bat --window` | 同默认 |
 | `start.bat --window --skip-port-clean` | 跳过端口清理（反复启动时） |
 | `python start.py` | 弹浏览器（不推荐，保持向后兼容） |
+
+---
+
+## 1.15 v2.26 增量变更（相对 v2.25）
+- **版本号**：PRD v2.26 / launcher v2.25.1 / 2026-07-06
+- **背景**：v2.25 修改后没测试就发出，start.bat 跑起来一堆 `'PY' 不是内部或外部命令`。
+
+### 1.15.1 Bug 复现
+`start.bat` 第 12 行 `set "PY=backend\venv\Scripts\python.exe"` 写在 `if exist` 块内，cmd 解析时把 `"backend\venv\Scripts\python.exe"` 拆成多个 token，每个都被当成命令执行。
+
+### 1.15.2 修复
+* **`start.bat`** 重写：
+  - `set "PY=..."` 提到外层（不在 `if exist` 块内）
+  - 备注行全部 ASCII（GBK 编码不会乱码）
+  - `set "ARGS=--window %*"` 预组参数，避免 `%*` 在 if 块内展开错位
+  - 保留 `if defined PY ... else where py ... else python` 三级 fallback
+
+### 1.15.3 验证
+* ✅ PowerShell 实测：`.\start.bat --skip-port-clean` → `/api/health` 返回 200，WebView2 进程 25 个
+
+### 1.15.4 沉淀（避坑）
+* **修改 start.bat 后必须实测**：cmd 脚本无 lint，错了只能跑起来看
+* **set 命令不能在 if 块内部分赋值**：提外层
+* **批处理文件不要写中文**：GBK 默认编码会导致乱码
 
 ---
 
