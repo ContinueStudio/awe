@@ -297,7 +297,7 @@ export default function App() {
                   placeholder="工作流名称"
                 />
               </div>
-              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>v0.3.0</span>
+              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>v0.3.1</span>
             </div>
 
             {/* 右：撤销 / 重做 / 保存 / 运行 */}
@@ -480,12 +480,22 @@ export default function App() {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100%', width: '100%', background: '#ffffff' }}>
-      <LeftNav active={navKey} onChange={navigate} health={health} />
-      <main style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden' }}>
-        {renderContent()}
-      </main>
-    </div>
+    <>
+      {view.kind === 'editor' ? (
+        // 编辑模式：全屏（无左侧导航）
+        <div style={{ height: '100%', width: '100%', background: '#ffffff' }}>
+          {renderContent()}
+        </div>
+      ) : (
+        // 其它页面：左 240 导航 + 右内容
+        <div style={{ display: 'flex', height: '100%', width: '100%', background: '#ffffff' }}>
+          <LeftNav active={navKey} onChange={navigate} health={health} />
+          <main style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden' }}>
+            {renderContent()}
+          </main>
+        </div>
+      )}
+    </>
   );
 }
 

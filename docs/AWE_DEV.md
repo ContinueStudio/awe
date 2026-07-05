@@ -1,11 +1,40 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.12**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.13**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.3.0 - 2026-07-05 21:00)
+## 1. 当前进度 (v0.3.1 - 2026-07-05 22:00)
+
+### 1.0 今日进展 (2026-07-05 22:00)
+
+**【本轮】v0.3.1：编辑模式全屏 + 底部双工具栏 + 节点 hover 详情（PRD v2.13）**
+- 🎨 **改动**：
+  1. **编辑模式全屏**（`App.tsx` 已实现，需 build 验证）：`view.kind === 'editor'` 时**完全隐藏**左侧 240px 导航栏 `LeftNav`，整屏用于编辑
+  2. **`BottomToolbar.tsx` 完全重写**（按用户截图描述）：
+     - **左工具栏**：5 个小图标按钮（注释 / 优化 / 排版 / 导出为图片 / 设置） + 1 个大图标按钮（添加节点）
+     - **右工具栏**：1 个大图标按钮（运行）
+     - 工具栏卡：白底 + `border-slate-200` + `rounded-10` + `box-shadow 0 4 16 rgba(15,23,42,0.08)`
+     - 小按钮：32×32，默认透明 + slate-600 文字，hover `bg-slate-100`，激活 `bg-slate-900` + 白字
+     - 大按钮：36 高，8px 圆角，`bg-slate-900` 黑底白字 + 15px 图标 + 文字标签
+     - 运行中：图标变 spinner，颜色 `bg-slate-700`，cursor: wait
+  3. **`NodeRender.tsx` 重写**：
+     - 节点主视图只显示 `22×22 类型色块（5px 圆角）+ 节点名字（13px / font-weight 600）`
+     - 节点最小高度 64px → 44px，画布可容纳更多节点
+     - hover 浮卡（240px 宽）：分类+type / 描述 / config 前 4 个字段摘要 / 端口数
+     - 浮卡样式：白底 + slate-200 边 + 8px 圆角 + `pointer-events: none`（不挡操作）
+     - 选中态：右上角复制/删除图标保留
+  4. **PRD 同步**：升级到 v2.13（`AWE_PRD.md` 头部 + §1.2 增量说明 + §9.1 编辑界面段更新）
+- 🐛 **避坑**：
+  - **dist hash 必须清缓存重 build**：`Remove-Item -Recurse dist, node_modules/.vite` 后再 `npm run build`，否则浏览器看到的是 v0.3.0 的 `index-Cg2wIG22.js` 旧版
+  - **NodeRender 移除后没有自动删除 `NodePreview` 子组件的引用**：因为整个文件重写，旧的 `NodePreview` 函数被一并删除，避免死代码
+  - **hover 浮卡 `pointer-events: none`**：否则会拦截到 node 本身的 hover，导致浮卡闪烁
+- ✅ **build 验证**（待执行）：`tsc -b && vite build` → 0 errors → 1591+ modules → dist hash 变化
+- ✅ **bundle 验证**（待执行）：
+  - `grep "添加节点"` JS bundle → 命中
+  - `grep "试运行"` → 0 命中（旧"试运行"按钮已替换为"运行"）
+  - `grep "view.kind === 'editor'"` → 命中（全屏条件渲染）
 
 ### 1.0 今日进展 (2026-07-05 21:00)
 
