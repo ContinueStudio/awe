@@ -1,7 +1,6 @@
 /**
  * 节点配置面板 - 根据 config_schema 动态生成表单
- *
- * 视觉风格参考 lawe：浅灰底输入框 + 圆角 6 + 标签 12px 灰色
+ * 视觉风格参考 shadcn/ui（PRD §9.2 v2.11+）：白底 + 细边 + 圆角 6
  */
 import { useMemo } from 'react';
 import type { CanvasNode, NodeDefinition } from '@/lib/types';
@@ -9,38 +8,41 @@ import type { CanvasNode, NodeDefinition } from '@/lib/types';
 const LABEL_STYLE: React.CSSProperties = {
   display: 'block',
   fontSize: 12,
-  marginBottom: 4,
-  color: '#86909C',
+  marginBottom: 6,
+  color: '#334155', // slate-700
   fontWeight: 500,
 };
 
 const INPUT_STYLE: React.CSSProperties = {
   width: '100%',
-  padding: '4px 12px',
+  height: 32,
+  padding: '0 12px',
   fontSize: 13,
   borderRadius: 6,
   outline: 'none',
-  background: '#F7F8FA',
-  color: '#1D2129',
-  border: '1px solid #E5E6EB',
+  background: '#ffffff',
+  color: '#020617',
+  border: '1px solid #e2e8f0',
   boxSizing: 'border-box',
-  transition: 'border-color 0.15s, background 0.15s',
+  transition: 'border-color 0.15s, box-shadow 0.15s',
 };
 
 const SELECT_STYLE: React.CSSProperties = {
   ...INPUT_STYLE,
   appearance: 'none',
-  paddingRight: 26,
+  paddingRight: 28,
   cursor: 'pointer',
 };
 
 const TEXTAREA_STYLE: React.CSSProperties = {
   ...INPUT_STYLE,
+  height: 'auto',
   resize: 'vertical',
   minHeight: 60,
   padding: '8px 12px',
-  fontFamily: '"SF Mono", "Fira Code", "Consolas", monospace',
+  fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace",
   fontSize: 12,
+  lineHeight: 1.5,
 };
 
 const CODE_STYLE: React.CSSProperties = {
@@ -68,7 +70,7 @@ export function ConfigPanel({
 
   return (
     <div className="space-y-3" style={{ fontSize: 13 }}>
-      {orderedKeys.length === 0 && <div style={{ color: '#9CA3AF', fontSize: 12 }}>该节点无需配置</div>}
+      {orderedKeys.length === 0 && <div style={{ color: '#94a3b8', fontSize: 12 }}>该节点无需配置</div>}
       {orderedKeys.map((key) => {
         const p = props[key] || {};
         const value = cfg[key] ?? p.default ?? '';
@@ -77,10 +79,10 @@ export function ConfigPanel({
           <div key={key}>
             <label style={LABEL_STYLE}>
               {p.title || key}
-              {isRequired && <span style={{ color: '#F53F3F' }}> *</span>}
+              {isRequired && <span style={{ color: '#dc2626' }}> *</span>}
             </label>
             {renderField(key, p, value, (v) => onChange({ ...cfg, [key]: v }))}
-            {p.description && <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 4 }}>{p.description}</div>}
+            {p.description && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, lineHeight: 1.5 }}>{p.description}</div>}
           </div>
         );
       })}
@@ -109,7 +111,7 @@ function renderField(
         <span style={{
           position: 'absolute', right: 10, top: '50%',
           transform: 'translateY(-50%)', pointerEvents: 'none',
-          color: '#86909C', fontSize: 10,
+          color: '#64748b', fontSize: 10,
         }}>▼</span>
       </div>
     );
@@ -134,7 +136,7 @@ function renderField(
           onClick={() => onChange(!value)}
           style={{
             width: 32, height: 18,
-            background: value ? '#4D53E8' : '#d1d5db',
+            background: value ? '#0f172a' : '#cbd5e1',
             borderRadius: 9, position: 'relative',
             transition: 'background 0.15s',
             cursor: 'pointer', border: 'none', padding: 0,
@@ -148,11 +150,10 @@ function renderField(
             transition: 'left 0.15s',
           }} />
         </button>
-        <span style={{ color: '#4E5969', fontSize: 12 }}>{value ? '开启' : '关闭'}</span>
+        <span style={{ color: '#475569', fontSize: 12 }}>{value ? '开启' : '关闭'}</span>
       </label>
     );
   }
-  // 代码 / 长文本
   if (p.format === 'textarea' || String(value).length > 60) {
     const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
     const isCode = p.format === 'textarea' && (p.title?.toLowerCase().includes('code') || p.title?.includes('代码') || key === 'code' || key === 'script');

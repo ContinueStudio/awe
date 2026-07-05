@@ -1,11 +1,51 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) v2.11
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.12**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.2.9 - 2026-07-05 07:45)
+## 1. 当前进度 (v0.3.0 - 2026-07-05 21:00)
+
+### 1.0 今日进展 (2026-07-05 21:00)
+
+**【本轮】v0.3.0：shadcn 主题全局落地 + 两栏布局（PRD v2.12）**
+- 🎨 **改动**：
+  1. **左栏导航（新增 `LeftNav`）**：固定 240px，`#f8fafc` 背景 + `border-slate-200` 右细线；4 个一级导航：工作流列表 / 节点管理 / 执行历史 / 设置；Logo 区黑底白字方块 + 字母 A + 后端健康点
+  2. **App.tsx 整体重写**：
+     - 整体布局：`<div flex><LeftNav/><main flex-1>{content}</main></div>`
+     - 路由：`view: { kind: 'workflows' | 'editor' | NavKey }`，Editor 时 navKey 强制回 `workflows`（点不到 editor tab）
+     - Editor 顶栏：白底 + `border-slate-200` 底边 + 黑 logo `#0f172a` + 字符 A
+     - 主按钮"运行"：`#0f172a` 黑底白字（hover `#1e293b`）；次按钮"保存"：白底 + `border-slate-200`（hover 黑边）
+     - NodeConfigDrawer 颜色表从 lawe 6 类颜色改为 shadcn 6 类行业色（emerald/blue/amber/sky/rose/slate），输出徽章用 `awe-badge` 类
+  3. **新增 3 个占位页面**：
+     - [NodesPage.tsx](file:///D:/AWE/frontend/src/pages/NodesPage.tsx)：节点定义管理（按 5 大类分组 + 搜索）
+     - [HistoryPage.tsx](file:///D:/AWE/frontend/src/pages/HistoryPage.tsx)：全局执行历史（占位）
+     - [SettingsPage.tsx](file:///D:/AWE/frontend/src/pages/SettingsPage.tsx)：后端连接信息 + 前端版本
+  4. **清理 lawe 紫色残留**：
+     - `Canvas.tsx` 端口圆点 `stroke="#4D53E8"` → `stroke="#475569"`（`slate-600`）
+     - `RunHistoryDrawer.tsx` / `RunHistoryPanel.tsx` 运行按钮 `bg-gradient-to-r from-brand-500 to-violet-500` → `bg-slate-900`
+  5. **PRD 同步**：本次涉及 UI/UX 规范大改，按用户确立的硬规则，**同步升级 PRD 到 v2.12**（`AWE_PRD.md` 头部 + §1.1 增量说明）
+  6. **规则写入记忆**：在 `project_memory.md` 加入"PRD 同步硬规则"，要求后续所有涉及功能/产品信息的代码变更都必须同步更新 PRD
+- 🐛 **避坑**：
+  - **HomePage.tsx 的实际 export 名字是 `WorkflowsPage`**：从 v2.9 起的改造，App.tsx 必须 `import { WorkflowsPage as HomePage }`
+  - **lucide-react icon 类型不能直接当 React 组件 props 类型**：因为 lucide icon 是 `ForwardRefExoticComponent` 且 `size` 接受 `string|number`，不能简化为 `ComponentType<{size?: number; className?: string}>`。统一用 lucide 导出的 `LucideIcon` 类型
+  - **HomePage.onCreate 签名是 `() => Promise<void>`** 不是 `Promise<Workflow>`：createWorkflow 里需要内部 `openWorkflow` 跳转，不要返回 Workflow
+  - **多份 `4D53E8` 残留会导致 dist bundle 包含旧主题**：`grep "4D53E8" dist/assets/*.js` 是验证主题已切换的最简单 marker（切换成功应该 grep 不到）
+  - **Vite build 不会因类型错误而重命名 hash**（注意：实际是 tsc -b 先跑类型检查，类型错会直接 0 输出）。但如果仅改 source 而没清缓存，可能 hash 看起来一样：务必 `Remove-Item -Recurse dist, node_modules/.vite` 后再 build
+- ✅ **build 验证**：`tsc -b && vite build` → 0 errors → 1591 modules → dist `index-Cg2wIG22.js`（232.84 kB / gzip 71.41 kB）
+- ✅ **bundle 验证**：
+  - `grep "v0.3.0"` JS bundle → 命中
+  - `grep "4D53E8"` JS bundle → 0 命中（lawe 紫色已清干净）
+  - `grep "v0.2.9"` JS bundle → 0 命中（无旧版本残留）
+- ✅ **运行时验证**：
+  - `start.py --no-browser` 启动后端 → `/api/health` 返回 `{"ok":true,"version":"0.1.0"}` → 前端 dist 200
+  - Playwright 6 张截图保存到 `docs/shots/v030_0{1-6}_*.png`：
+    - `v030_01_home.png` / `v030_02_nav.png`：左 240 导航 + 工作流列表表格
+    - `v030_03_nodes.png`：节点管理页（5 大类分组）
+    - `v030_04_settings.png`：设置页（后端连接 + 前端 v0.3.0）
+    - `v030_05_editor.png`：Editor 顶栏白底 + 黑 logo + slate 配色按钮
+    - `v030_06_nodepanel.png`：节点面板 12 个节点分类
 
 ### 1.0 今日进展 (2026-07-05 08:10)
 

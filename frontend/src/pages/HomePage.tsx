@@ -1,13 +1,15 @@
 /**
- * Home 页 - 工作流卡片网格（N8N / Dify 风格）
- * - 顶栏：AWE Logo + 后端状态 + 新建工作流按钮
- * - 主体：工作流卡片网格（名称 / 描述 / 状态点 / 运行数 / 最后运行时间）
- * - 卡片菜单：编辑 / 重命名 / 复制 / 导出 / 删除
- * - 卡片底部"日志"按钮 → 右侧 Drawer 显示该工作流的运行历史（不需要进 Editor）
+ * Home 页 - 工作流详情行列表（PRD §9.1 v2.11+）
+ * - 两栏布局：左 240px 导航 + 右自适应内容
+ * - 详情行形式（非卡片网格）：名称 / 状态 / 更新时间 3 列
+ * - 每行右侧：右键菜单（编辑/重命名/复制/导出/删除）、运行按钮、分享按钮
+ * - 顶部：搜索框 + 新建按钮 + 分页器
+ *
+ * 视觉：shadcn 白底 + 细边 + 圆角 lg，零渐变零紫色
  */
 import { useEffect, useRef, useState } from 'react';
 import {
-  Cpu, Plus, Search, MoreVertical, Pencil, Copy, Trash2, Download, Play, Loader2, FilePlus2, FolderOpen, History,
+  Plus, Search, MoreVertical, Pencil, Copy, Trash2, Download, Play, Loader2, Share2, ChevronLeft, ChevronRight, FilePlus2,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -17,13 +19,21 @@ import type { Workflow } from '@/lib/types';
 type HealthInfo = { ok: boolean; version: string };
 
 function StatusDot({ s }: { s: Workflow['last_status'] }) {
-  if (s === 'succeeded') return <span className="w-2 h-2 rounded-full bg-emerald-500" />;
-  if (s === 'failed')    return <span className="w-2 h-2 rounded-full bg-rose-500" />;
-  if (s === 'running')   return <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />;
-  return <span className="w-2 h-2 rounded-full bg-slate-300" />;
+  if (s === 'succeeded') return <span className="status-dot status-dot-success" />;
+  if (s === 'failed')    return <span className="status-dot status-dot-failed" />;
+  if (s === 'running')   return <span className="status-dot status-dot-running" />;
+  return <span className="status-dot status-dot-muted" />;
 }
 
-function fmtTime(ts: number) {
+function StatusBadge({ s }: { s: Workflow['last_status'] }) {
+  if (s === 'succeeded') return <span className="awe-badge awe-badge-success">已停止</span>;
+  if (s === 'failed')    return <span className="awe-badge awe-badge-failed">错误</span>;
+  if (s === 'running')   return <span className="awe-badge awe-badge-running">运行中</span>;
+  return <span className="awe-badge awe-badge-muted">草稿</span>;
+}
+
+function fmtTime(ts: number | null | undefined) {
+  if (!ts) return '—';
   const d = new Date(ts * 1000);
   const now = Date.now();
   const diff = (now - d.getTime()) / 1000;
@@ -31,30 +41,28 @@ function fmtTime(ts: number) {
   if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
   if (diff < 86400 * 7) return `${Math.floor(diff / 86400)} 天前`;
-  return d.toLocaleDateString();
+  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-export function HomePage({
+const PAGE_SIZE = 15;
+
+export function WorkflowsPage({
   onOpen,
+  onCreate,
 }: {
   onOpen: (wf: Workflow) => void;
+  onCreate: () => Promise<void>;
 }) {
-  const [health, setHealth] = useState<HealthInfo | null>(null);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
-  const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [logWf, setLogWf] = useState<Workflow | null>(null);
   const [runningIds, setRunningIds] = useState<Record<string, boolean>>({});
+  const [page, setPage] = useState(0);
+  const [creating, setCreating] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  // 启动拉健康
-  useEffect(() => {
-    api.health().then(setHealth).catch(() => setHealth({ ok: false, version: 'unknown' }));
-  }, []);
-
-  // 3s 自动刷新拿到最新 run_count / last_status
   useEffect(() => {
     const refresh = () => api.listWorkflows().then((d) => setWorkflows(d.workflows as any)).catch(console.error);
     refresh();
@@ -62,33 +70,23 @@ export function HomePage({
     return () => clearInterval(t);
   }, []);
 
-  // 关闭菜单
   useEffect(() => {
     if (!menu) return;
     const onClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(null);
     };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
     document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onEsc);
+    };
   }, [menu]);
 
-  // ---- 操作 ----
-  const createNew = async () => {
+  const handleCreate = async () => {
     setCreating(true);
-    try {
-      const res = await api.saveWorkflow({
-        name: '未命名工作流',
-        description: '',
-        nodes: [],
-        edges: [],
-      });
-      const d = await api.listWorkflows();
-      setWorkflows(d.workflows as any);
-      const wf = (d.workflows as Workflow[]).find((w) => w.id === res.id);
-      if (wf) onOpen(wf);
-    } finally {
-      setCreating(false);
-    }
+    try { await onCreate(); } finally { setCreating(false); }
   };
 
   const deleteOne = async (id: string) => {
@@ -102,7 +100,7 @@ export function HomePage({
   const duplicateOne = async (id: string) => {
     const wf = workflows.find((w) => w.id === id);
     if (!wf) return;
-    const res = await api.saveWorkflow({
+    await api.saveWorkflow({
       name: wf.name + ' (副本)',
       description: wf.description || '',
       nodes: wf.graph?.nodes || [],
@@ -111,8 +109,6 @@ export function HomePage({
     setMenu(null);
     const d = await api.listWorkflows();
     setWorkflows(d.workflows as any);
-    const nw = (d.workflows as Workflow[]).find((w) => w.id === res.id);
-    if (nw) onOpen(nw);
   };
 
   const exportOne = (wf: Workflow) => {
@@ -124,12 +120,23 @@ export function HomePage({
     setMenu(null);
   };
 
+  const shareOne = (wf: Workflow) => {
+    const url = `${location.origin}/api/workflows/${wf.id}/share`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        alert(`分享链接已复制到剪贴板：\n${url}`);
+      });
+    } else {
+      prompt('复制此分享链接：', url);
+    }
+    setMenu(null);
+  };
+
   const commitRename = async () => {
     if (!renaming) return;
     const id = renaming.id;
     const newName = renaming.name.trim() || '未命名工作流';
     setRenaming(null);
-    // 用 saveWorkflow 覆盖（PUT）
     const wf = workflows.find((w) => w.id === id);
     if (!wf) return;
     await api.saveWorkflow({
@@ -143,13 +150,11 @@ export function HomePage({
     setWorkflows(d.workflows as any);
   };
 
-  // 从主界面直接运行（不跳到 Editor）
   const runFromHome = async (id: string) => {
     if (runningIds[id]) return;
     setRunningIds((m) => ({ ...m, [id]: true }));
     try {
       await api.runWorkflow(id, {});
-      // 跑完立即刷新列表拿到最新 last_status
       const d = await api.listWorkflows();
       setWorkflows(d.workflows as any);
     } catch (e) {
@@ -160,121 +165,150 @@ export function HomePage({
     }
   };
 
-  // 把卡片列表转成 RunHistoryDrawer 期望的 current（带 graph 字段）
   const currentLogWf: Workflow | null = logWf
     ? { ...logWf, graph: logWf.graph || (workflows.find((w) => w.id === logWf.id)?.graph) || { nodes: [], edges: [] } }
     : null;
 
   const filtered = workflows.filter((w) => w.name.toLowerCase().includes(query.toLowerCase()));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
-    <div className="h-full w-full flex flex-col bg-slate-50">
-      {/* 顶栏 */}
-      <header className="h-14 shrink-0 glass border-b border-slate-200/70 flex items-center px-6 gap-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center shadow-sm">
-            <Cpu className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-slate-800 leading-tight">AWE</div>
-            <div className="text-[10px] text-slate-500 leading-tight">智能体工作流引擎</div>
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#ffffff' }}>
+      {/* 顶部工具条（搜索 + 新建） */}
+      <header
+        className="glass"
+        style={{
+          height: 56,
+          display: 'flex', alignItems: 'center',
+          padding: '0 24px',
+          gap: 12,
+          borderBottom: '1px solid #e2e8f0',
+          flexShrink: 0,
+        }}
+      >
+        <div>
+          <h1 style={{ fontSize: 16, fontWeight: 600, color: '#020617', lineHeight: 1.2 }}>工作流列表</h1>
+          <p style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+            共 <span style={{ color: '#020617', fontWeight: 500 }}>{workflows.length}</span> 个工作流
+          </p>
         </div>
-        <span className="text-[11px] text-slate-400">v0.2.2</span>
-        <div className="ml-auto flex items-center gap-3">
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ position: 'relative' }}>
+            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); setPage(0); }}
               placeholder="搜索工作流…"
-              className="pl-8 pr-3 py-1.5 text-xs bg-white/70 border border-slate-200/80 rounded-md outline-none w-56 focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+              className="awe-input"
+              style={{ width: 240, paddingLeft: 32 }}
             />
           </div>
-          {health && (
-            <span className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px]",
-              health.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700",
-            )}>
-              <span className={cn("w-1.5 h-1.5 rounded-full", health.ok ? "bg-emerald-500" : "bg-rose-500")} />
-              {health.ok ? `已连接 · ${health.version}` : '后端离线'}
-            </span>
-          )}
           <button
-            onClick={createNew}
+            onClick={handleCreate}
             disabled={creating}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-white shadow-sm transition-colors",
-              "bg-gradient-to-r from-brand-500 to-violet-500 hover:from-brand-600 hover:to-violet-600",
-              "disabled:opacity-50",
-            )}
+            className="awe-btn-primary"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '0 12px', height: 32, borderRadius: 6,
+              background: '#0f172a', color: '#ffffff', border: 'none',
+              fontSize: 13, fontWeight: 500, cursor: creating ? 'wait' : 'pointer',
+              opacity: creating ? 0.5 : 1,
+            }}
+            title="新建工作流"
           >
-            {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
             新建工作流
           </button>
         </div>
       </header>
 
-      {/* 主体内容 */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          {/* 标题区 */}
-          <div className="mb-6 flex items-end justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-800">我的工作流</h1>
-              <p className="text-sm text-slate-500 mt-1">所有已经创建的工作流都在这里 · 点击卡片进入编辑</p>
-            </div>
-            <div className="text-xs text-slate-500">
-              共 <span className="font-semibold text-slate-700">{workflows.length}</span> 个
-            </div>
-          </div>
-
-          {/* 空状态 / 卡片网格 */}
+      {/* 列表区 */}
+      <main className="thin-scroll" style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           {workflows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 glass rounded-2xl border border-dashed border-slate-300">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-100 to-violet-100 flex items-center justify-center mb-4">
-                <FolderOpen className="w-7 h-7 text-brand-500" />
-              </div>
-              <div className="text-base font-semibold text-slate-700 mb-1">还没有任何工作流</div>
-              <div className="text-sm text-slate-500 mb-5">创建一个新的工作流开始你的第一次编排</div>
-              <button
-                onClick={createNew}
-                disabled={creating}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white shadow-sm",
-                  "bg-gradient-to-r from-brand-500 to-violet-500 hover:from-brand-600 hover:to-violet-600",
-                  "disabled:opacity-50",
-                )}
-              >
-                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FilePlus2 className="w-4 h-4" />}
-                新建工作流
-              </button>
-            </div>
+            <EmptyState onCreate={handleCreate} creating={creating} />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filtered.map((wf) => (
-            <WfCard
-              key={wf.id}
-              wf={wf}
-              onOpen={() => onOpen(wf)}
-              onShowLogs={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                setLogWf(wf);
+            <div
+              style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 8,
+                overflow: 'hidden',
               }}
-              onRun={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                runFromHome(wf.id);
-              }}
-              isRunning={!!runningIds[wf.id]}
-              onMenu={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                setMenu({ id: wf.id, x: e.clientX, y: e.clientY });
-              }}
-            />
-          ))}
+            >
+              {/* 表头 */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(280px, 1fr) 120px 180px 200px',
+                  alignItems: 'center',
+                  height: 36,
+                  padding: '0 16px',
+                  background: '#f8fafc',
+                  borderBottom: '1px solid #e2e8f0',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: '#64748b',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                }}
+              >
+                <div>名称</div>
+                <div>状态</div>
+                <div>更新时间</div>
+                <div style={{ textAlign: 'right' }}>操作</div>
+              </div>
+
+              {pageItems.length === 0 ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                  没有匹配的工作流
+                </div>
+              ) : (
+                pageItems.map((wf) => (
+                  <WfRow
+                    key={wf.id}
+                    wf={wf}
+                    onOpen={() => onOpen(wf)}
+                    onShowLogs={(e) => { e.stopPropagation(); e.preventDefault(); setLogWf(wf); }}
+                    onRun={(e) => { e.stopPropagation(); e.preventDefault(); runFromHome(wf.id); }}
+                    onShare={(e) => { e.stopPropagation(); e.preventDefault(); shareOne(wf); }}
+                    isRunning={!!runningIds[wf.id]}
+                    onMenu={(e) => { e.stopPropagation(); e.preventDefault(); setMenu({ id: wf.id, x: e.clientX, y: e.clientY }); }}
+                  />
+                ))
+              )}
+            </div>
+          )}
+
+          {/* 分页器 */}
+          {workflows.length > 0 && totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
+              <div style={{ fontSize: 12, color: '#64748b' }}>
+                第 {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, filtered.length)} 条 / 共 {filtered.length} 条
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="awe-icon-btn"
+                  style={{ opacity: page === 0 ? 0.4 : 1, cursor: page === 0 ? 'not-allowed' : 'pointer' }}
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span style={{ fontSize: 12, color: '#475569', padding: '0 8px' }}>
+                  {page + 1} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={page === totalPages - 1}
+                  className="awe-icon-btn"
+                  style={{ opacity: page === totalPages - 1 ? 0.4 : 1, cursor: page === totalPages - 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -284,8 +318,14 @@ export function HomePage({
       {menu && (
         <div
           ref={menuRef}
-          className="fixed z-50 glass rounded-lg shadow-xl border border-slate-200/80 py-1 w-40"
-          style={{ top: menu.y, left: menu.x }}
+          style={{
+            position: 'fixed', zIndex: 50,
+            top: menu.y, left: menu.x,
+            background: '#ffffff',
+            borderRadius: 8, border: '1px solid #e2e8f0',
+            boxShadow: 'var(--shadow-float)',
+            padding: '4px', width: 160,
+          }}
         >
           <MenuItem icon={Pencil} label="重命名" onClick={() => {
             const wf = workflows.find((w) => w.id === menu.id);
@@ -297,32 +337,55 @@ export function HomePage({
             const wf = workflows.find((w) => w.id === menu.id);
             if (wf) exportOne(wf);
           }} />
-          <div className="h-px bg-slate-200/60 my-1" />
+          <MenuItem icon={Share2} label="复制分享链接" onClick={() => {
+            const wf = workflows.find((w) => w.id === menu.id);
+            if (wf) shareOne(wf);
+          }} />
+          <div style={{ height: 1, background: '#e2e8f0', margin: '4px 0' }} />
           <MenuItem icon={Trash2} label="删除" danger onClick={() => deleteOne(menu.id)} />
         </div>
       )}
 
       {/* 重命名弹窗 */}
       {renaming && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/30 backdrop-blur-sm" onClick={() => setRenaming(null)}>
-          <div className="glass rounded-2xl border border-slate-200/80 shadow-2xl w-96 p-5" onClick={(e) => e.stopPropagation()}>
-            <div className="text-sm font-semibold text-slate-800 mb-3">重命名工作流</div>
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.4)' }}
+          onClick={() => setRenaming(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#ffffff', borderRadius: 8, border: '1px solid #e2e8f0',
+              boxShadow: 'var(--shadow-panel)', width: 380, padding: 20,
+            }}
+          >
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#020617', marginBottom: 12 }}>重命名工作流</div>
             <input
               autoFocus
               value={renaming.name}
               onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
               onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenaming(null); }}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+              className="awe-input"
             />
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setRenaming(null)} className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-md">取消</button>
-              <button onClick={commitRename} className="px-3 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-brand-500 to-violet-500 hover:from-brand-600 hover:to-violet-600 rounded-md">确定</button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button
+                onClick={() => setRenaming(null)}
+                style={{ padding: '0 12px', height: 32, borderRadius: 6, background: '#ffffff', border: '1px solid #e2e8f0', color: '#475569', fontSize: 13, cursor: 'pointer' }}
+              >
+                取消
+              </button>
+              <button
+                onClick={commitRename}
+                style={{ padding: '0 12px', height: 32, borderRadius: 6, background: '#0f172a', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+              >
+                确定
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 全局日志 Drawer：卡片"查看日志"按钮触发，Home 页不离开就能看运行历史 */}
+      {/* 全局日志 Drawer */}
       <RunHistoryDrawer
         current={currentLogWf}
         open={!!logWf}
@@ -334,93 +397,88 @@ export function HomePage({
   );
 }
 
-function WfCard({
-  wf, onOpen, onShowLogs, onRun, isRunning, onMenu,
+/* -------------------- 列表行 -------------------- */
+function WfRow({
+  wf, onOpen, onShowLogs, onRun, onShare, isRunning, onMenu,
 }: {
   wf: Workflow;
   onOpen: () => void;
   onShowLogs: (e: React.MouseEvent) => void;
   onRun: (e: React.MouseEvent) => void;
+  onShare: (e: React.MouseEvent) => void;
   isRunning: boolean;
   onMenu: (e: React.MouseEvent) => void;
 }) {
-  const status = wf.last_status;
-  const runCount = wf.run_count ?? 0;
   const lastTime = wf.last_started_at;
-  const total = wf.graph?.nodes?.length || 0;
   return (
     <div
       onClick={onOpen}
-      className="group glass rounded-2xl border border-slate-200/80 hover:border-brand-300 hover:shadow-md transition-all cursor-pointer overflow-hidden"
+      onContextMenu={(e) => { e.preventDefault(); onMenu(e); }}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(280px, 1fr) 120px 180px 200px',
+        alignItems: 'center',
+        height: 48,
+        padding: '0 16px',
+        borderBottom: '1px solid #f1f5f9',
+        cursor: 'pointer',
+        transition: 'background 0.12s',
+      }}
+      onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = '#f8fafc')}
+      onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'transparent')}
     >
-      {/* 缩略图占位（Dify 用 canvas 截图，目前先用渐变占位） */}
-      <div className="h-32 bg-gradient-to-br from-slate-50 via-brand-50/30 to-violet-50/40 relative flex items-center justify-center">
-        <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #94a3b8 1px, transparent 0)', backgroundSize: '16px 16px' }} />
-        {total > 0 ? (
-          <div className="relative flex items-center gap-1.5">
-            <div className="w-12 h-8 rounded bg-white border border-slate-200 shadow-sm flex items-center justify-center text-[9px] text-slate-500 font-mono">webhook</div>
-            <div className="w-px h-px bg-slate-300" />
-            <div className="w-14 h-10 rounded bg-white border border-slate-200 shadow-sm flex items-center justify-center text-[9px] text-slate-500 font-mono">skill</div>
-            <div className="w-px h-px bg-slate-300" />
-            <div className="w-10 h-8 rounded bg-white border border-slate-200 shadow-sm flex items-center justify-center text-[9px] text-slate-500 font-mono">end</div>
-          </div>
-        ) : (
-          <div className="relative text-slate-400 text-xs flex flex-col items-center gap-1">
-            <FilePlus2 className="w-6 h-6" />
-            空工作流
-          </div>
-        )}
-        <button
-          onClick={onMenu}
-          className="absolute top-2 right-2 w-7 h-7 rounded-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 hover:bg-white/80"
-          title="操作"
-        >
-          <MoreVertical className="w-3.5 h-3.5 text-slate-600" />
-        </button>
+      {/* 名称列：状态点 + 名称 + 节点数 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        <StatusDot s={wf.last_status} />
+        <span style={{ fontSize: 13, fontWeight: 500, color: '#020617', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {wf.name}
+        </span>
+        <span style={{ fontSize: 11, color: '#94a3b8', flexShrink: 0 }}>
+          {wf.graph?.nodes?.length || 0} 节点
+        </span>
       </div>
 
-      {/* 信息 */}
-      <div className="p-3.5">
-        <div className="flex items-center gap-2 mb-1">
-          <StatusDot s={status} />
-          <div className="text-sm font-semibold text-slate-800 truncate flex-1" title={wf.name}>{wf.name}</div>
-        </div>
-        <div className="text-[11px] text-slate-500 line-clamp-1 min-h-[16px]">
-          {wf.description || (total > 0 ? `${total} 个节点` : '空白工作流 · 点击开始编排')}
-        </div>
-        <div className="mt-2.5 flex items-center justify-between text-[10.5px] text-slate-400">
-          <div className="flex items-center gap-1">
-            <Play className="w-3 h-3" />
-            {runCount} 次运行
-          </div>
-          <div>
-            {lastTime ? fmtTime(lastTime) : '未运行'}
-          </div>
-        </div>
-        {/* 操作行：日志 / 运行 */}
-        <div className="mt-2.5 flex items-center gap-1.5 pt-2.5 border-t border-slate-200/60">
-          <button
-            onClick={onShowLogs}
-            className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-colors"
-            title="查看运行历史"
-          >
-            <History className="w-3 h-3" />
-            查看日志
-          </button>
-          <button
-            onClick={onRun}
-            disabled={isRunning}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors",
-              "bg-gradient-to-r from-brand-500 to-violet-500 text-white hover:from-brand-600 hover:to-violet-600",
-              "disabled:opacity-50",
-            )}
-            title="直接运行此工作流"
-          >
-            {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-            {isRunning ? '运行中' : '运行'}
-          </button>
-        </div>
+      {/* 状态列 */}
+      <div><StatusBadge s={wf.last_status} /></div>
+
+      {/* 更新时间列 */}
+      <div style={{ fontSize: 12, color: '#64748b' }}>{fmtTime(lastTime)}</div>
+
+      {/* 操作列：运行 / 分享 / 更多 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={onShowLogs}
+          className="awe-icon-btn"
+          title="查看运行历史"
+          style={{ width: 28, height: 28 }}
+        >
+          <span style={{ fontSize: 10, fontWeight: 600, color: '#475569' }}>{wf.run_count ?? 0}</span>
+        </button>
+        <button
+          onClick={onRun}
+          disabled={isRunning}
+          className="awe-icon-btn"
+          style={{ width: 28, height: 28, color: isRunning ? '#cbd5e1' : '#16a34a', borderColor: isRunning ? '#e2e8f0' : '#e2e8f0' }}
+          title="直接运行"
+        >
+          {isRunning ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} fill="currentColor" />}
+        </button>
+        <button
+          onClick={onShare}
+          className="awe-icon-btn"
+          style={{ width: 28, height: 28 }}
+          title="复制分享链接"
+        >
+          <Share2 size={12} />
+        </button>
+        <button
+          onClick={onMenu}
+          className="awe-icon-btn"
+          style={{ width: 28, height: 28 }}
+          title="更多操作"
+        >
+          <MoreVertical size={12} />
+        </button>
       </div>
     </div>
   );
@@ -430,15 +488,60 @@ function MenuItem({ icon: Icon, label, onClick, danger }: { icon: any; label: st
   return (
     <button
       onClick={onClick}
-      className={cn(
-        "w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-100/80 text-left",
-        danger ? "text-rose-600 hover:bg-rose-50" : "text-slate-700",
-      )}
+      style={{
+        width: '100%',
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '6px 10px', borderRadius: 4, fontSize: 13,
+        border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left',
+        color: danger ? '#dc2626' : '#020617',
+        transition: 'background 0.12s',
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.background = danger ? '#fef2f2' : '#f1f5f9';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+      }}
     >
-      <Icon className="w-3.5 h-3.5" />
+      <Icon size={13} />
       {label}
     </button>
   );
 }
 
-console.log('??SELFTEST_HOMEPAGE_MARKER??');
+function EmptyState({ onCreate, creating }: { onCreate: () => void; creating: boolean }) {
+  return (
+    <div
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: '80px 0', background: '#ffffff',
+        border: '1px dashed #e2e8f0', borderRadius: 8,
+      }}
+    >
+      <div style={{
+        width: 56, height: 56, borderRadius: 8,
+        background: '#f8fafc', border: '1px solid #e2e8f0',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        marginBottom: 12,
+      }}>
+        <FilePlus2 size={22} color="#94a3b8" />
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: '#020617', marginBottom: 4 }}>还没有任何工作流</div>
+      <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>创建一个新的工作流开始你的第一次编排</div>
+      <button
+        onClick={onCreate}
+        disabled={creating}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '0 14px', height: 32, borderRadius: 6,
+          background: '#0f172a', color: '#ffffff', border: 'none',
+          fontSize: 13, fontWeight: 500, cursor: creating ? 'wait' : 'pointer',
+          opacity: creating ? 0.5 : 1,
+        }}
+      >
+        {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+        新建工作流
+      </button>
+    </div>
+  );
+}

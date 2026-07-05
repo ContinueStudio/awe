@@ -1,30 +1,30 @@
 /**
- * 节点面板（lawe 风格 - 底部悬浮）
- * - 白底圆角 16 + 阴影 + 搜索框
- * - 按分类分组（2 列网格）
- * - 节点 icon 用首字母字符（与 lawe 一致）
- * - 顶部三角形指示器指向 BottomToolbar
+ * 节点面板（shadcn 白底黑字 PRD v2.11+）
+ * - 底部悬浮，白底 + 细边 + rounded-lg + 极轻阴影
+ * - 搜索框 + 2 列节点网格
+ * - 节点 icon 用首字母字符（类型色条 + 白字）
  */
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import type { NodeDefinition } from '@/lib/types';
 
-// 节点类型 → 颜色块（与 lawe 风格保持一致：emerald=绿、violet=紫、amber=橙、sky=蓝、rose=红、slate=主色）
+// 节点类型 → 颜色（与 NodeRender 保持一致）
 const COLOR_BAR: Record<string, string> = {
-  emerald: '#00B42A',
-  violet: '#7C3AED',
-  amber: '#FF7D00',
-  sky: '#0EA5E9',
-  rose: '#F53F3F',
-  slate: '#4D53E8',
+  emerald: '#16a34a',
+  blue:    '#2563eb',
+  amber:   '#d97706',
+  sky:     '#0284c7',
+  rose:    '#dc2626',
+  slate:   '#0f172a',
+  violet:  '#7c3aed',
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
-  trigger: '触发 / 边界',
-  ai: 'AI 与语义路由',
+  trigger:   '触发 / 边界',
+  ai:        'AI 与语义路由',
   knowledge: '知识 / 数据',
-  external: '外部生态',
-  human: '人类管理',
+  external:  '外部生态',
+  human:     '人类管理',
 };
 
 const CATEGORY_ORDER: string[] = ['trigger', 'ai', 'knowledge', 'external', 'human'];
@@ -56,17 +56,17 @@ export function NodePanel({ onAdd }: Props) {
     <div
       style={{
         background: '#ffffff',
-        border: '1px solid #E5E6EB',
-        borderRadius: 16,
-        boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
-        padding: '14px 14px 10px',
+        border: '1px solid #e2e8f0',
+        borderRadius: 12,
+        boxShadow: 'var(--shadow-panel)',
+        padding: '12px 12px 10px',
         width: 460,
         maxHeight: 420,
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
         fontSize: 13,
-        color: '#1D2129',
+        color: '#020617',
       }}
     >
       {/* 搜索框 */}
@@ -74,15 +74,14 @@ export function NodePanel({ onAdd }: Props) {
         style={{
           display: 'flex',
           alignItems: 'center',
-          border: '1px solid #d1d5db',
-          borderRadius: 8,
-          padding: '6px 10px',
+          border: '1px solid #e2e8f0',
+          borderRadius: 6,
+          padding: '0 10px',
+          height: 32,
           marginBottom: 10,
         }}
-        onFocus={(e) => ((e.currentTarget as HTMLDivElement).style.borderColor = '#4D53E8')}
-        onBlur={(e) => ((e.currentTarget as HTMLDivElement).style.borderColor = '#d1d5db')}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round">
           <circle cx="11" cy="11" r="8" />
           <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
@@ -92,20 +91,13 @@ export function NodePanel({ onAdd }: Props) {
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           autoFocus
-          style={{
-            marginLeft: 8,
-            outline: 'none',
-            border: 'none',
-            background: 'transparent',
-            fontSize: 13,
-            color: '#374151',
-            width: '100%',
-          }}
+          className="awe-input"
+          style={{ border: 'none', boxShadow: 'none', background: 'transparent', padding: '0 0 0 8px', height: '100%', fontSize: 13 }}
         />
         {keyword && (
           <button
             onClick={() => setKeyword('')}
-            style={{ color: '#9ca3af', fontSize: 18, lineHeight: 1, cursor: 'pointer', background: 'none', border: 'none' }}
+            style={{ color: '#94a3b8', fontSize: 18, lineHeight: 1, cursor: 'pointer', background: 'none', border: 'none' }}
             title="清空"
           >
             ×
@@ -126,7 +118,7 @@ export function NodePanel({ onAdd }: Props) {
               <div
                 style={{
                   fontSize: 11,
-                  color: '#9ca3af',
+                  color: '#94a3b8',
                   paddingLeft: 4,
                   marginBottom: 4,
                   textTransform: 'uppercase',
@@ -154,26 +146,21 @@ export function NodePanel({ onAdd }: Props) {
                         alignItems: 'center',
                         gap: 8,
                         padding: '8px 10px',
-                        borderRadius: 8,
+                        borderRadius: 6,
                         border: 'none',
                         background: 'transparent',
                         cursor: 'pointer',
                         textAlign: 'left',
                         transition: 'background 0.15s',
                       }}
-                      onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#F3F4F6')}
+                      onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9')}
                       onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'transparent')}
                     >
-                      {/* 首字母字符图标（与 lawe 一致） */}
                       <div
                         style={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: 6,
+                          width: 24, height: 24, borderRadius: 6,
                           background: color,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
                           flexShrink: 0,
                         }}
                       >
@@ -182,16 +169,13 @@ export function NodePanel({ onAdd }: Props) {
                         </span>
                       </div>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontSize: 13, color: '#374151', fontWeight: 500, lineHeight: 1.3 }}>
+                        <div style={{ fontSize: 13, color: '#020617', fontWeight: 500, lineHeight: 1.3 }}>
                           {item.name}
                         </div>
                         <div
                           style={{
-                            fontSize: 11,
-                            color: '#9ca3af',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
+                            fontSize: 11, color: '#94a3b8',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                             marginTop: 1,
                           }}
                         >
@@ -207,7 +191,7 @@ export function NodePanel({ onAdd }: Props) {
         })}
 
         {Object.values(grouped).every((arr) => arr.length === 0) && (
-          <div style={{ textAlign: 'center', padding: '30px 0', color: '#9ca3af', fontSize: 13 }}>
+          <div style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8', fontSize: 13 }}>
             没有匹配的节点
           </div>
         )}
@@ -225,7 +209,7 @@ export function NodePanel({ onAdd }: Props) {
           borderLeft: '6px solid transparent',
           borderRight: '6px solid transparent',
           borderTop: '6px solid #ffffff',
-          filter: 'drop-shadow(0 1px 0 #e5e7eb)',
+          filter: 'drop-shadow(0 1px 0 #e2e8f0)',
         }}
       />
     </div>

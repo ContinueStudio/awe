@@ -282,7 +282,7 @@ export function Canvas({
           onWheel={onWheel}
         >
           <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>
-            {/* 已有连线（lawe 蓝色） */}
+            {/* 已有连线（PRD §9.2 slate-400） */}
             {graph.edges.map((e) => (
               <path
                 key={e.id || `${e.source}-${e.target}`}
@@ -338,7 +338,7 @@ export function Canvas({
                       <circle
                         key={`in-${i}`}
                         cx={0} cy={py} r={PORT_R}
-                        fill="#ffffff" stroke="#4D53E8" strokeWidth={1.5}
+                        fill="#ffffff" stroke="#475569" strokeWidth={1.5}
                         style={{ cursor: 'crosshair' }}
                         onMouseDown={(e) => e.stopPropagation()}
                         onMouseUp={(e) => completeEdge(e, n.id)}
@@ -351,7 +351,7 @@ export function Canvas({
                       <circle
                         key={`out-${i}`}
                         cx={NODE_W} cy={py} r={PORT_R}
-                        fill="#ffffff" stroke="#4D53E8" strokeWidth={1.5}
+                        fill="#ffffff" stroke="#475569" strokeWidth={1.5}
                         style={{ cursor: 'crosshair' }}
                         onMouseDown={(e) => startEdge(e, n.id)}
                       />

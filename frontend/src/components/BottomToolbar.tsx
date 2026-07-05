@@ -1,8 +1,7 @@
 /**
- * 底部悬浮工具栏（参考 lawe 风格）
- * - 白底 + 圆角 12 + 柔和阴影
+ * 底部悬浮工具栏（shadcn 白底黑字 PRD v2.11+）
+ * - 白底 + 细边 + rounded-lg + 极轻阴影
  * - 居中悬浮：+ 节点 / 缩放比例 / 试运行 / 节点数
- * - 注：lawe 没有 +/- 缩放按钮，仅显示百分比
  */
 interface Props {
   onTestRun: () => void;
@@ -33,33 +32,25 @@ export function BottomToolbar({
         alignItems: 'center',
         gap: 4,
         background: '#ffffff',
-        border: '1px solid #E5E6EB',
-        borderRadius: 12,
-        boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
-        padding: '6px 10px',
+        border: '1px solid #e2e8f0',
+        borderRadius: 8,
+        boxShadow: 'var(--shadow-toolbar)',
+        padding: '4px 8px',
       }}
     >
-      {/* 添加节点 */}
       <button
         onClick={onToggleNodePanel}
+        className="awe-icon-btn"
         style={{
-          width: 32,
-          height: 32,
-          borderRadius: 8,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          border: 'none',
-          background: showNodePanel ? '#EEF0FF' : 'transparent',
-          color: showNodePanel ? '#4D53E8' : '#4E5969',
-          transition: 'all 0.15s',
+          background: showNodePanel ? '#f1f5f9' : 'transparent',
+          borderColor: showNodePanel ? '#020617' : 'transparent',
+          color: showNodePanel ? '#020617' : '#64748b',
         }}
         title="添加节点"
       >
         <svg
-          width="18"
-          height="18"
+          width="16"
+          height="16"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -71,15 +62,14 @@ export function BottomToolbar({
         </svg>
       </button>
 
-      <div style={{ width: 1, height: 20, background: '#E5E6EB' }} />
+      <div style={{ width: 1, height: 16, background: '#e2e8f0' }} />
 
-      {/* 缩放比例（与 lawe 一致：纯文字） */}
       <span
         style={{
           fontSize: 12,
-          color: '#86909C',
-          padding: '0 4px',
-          minWidth: 36,
+          color: '#64748b',
+          padding: '0 8px',
+          minWidth: 40,
           textAlign: 'center',
           userSelect: 'none',
         }}
@@ -87,34 +77,27 @@ export function BottomToolbar({
         {Math.round(zoom * 100)}%
       </span>
 
-      <div style={{ width: 1, height: 20, background: '#E5E6EB' }} />
+      <div style={{ width: 1, height: 16, background: '#e2e8f0' }} />
 
-      {/* 试运行 */}
       <button
         onClick={onTestRun}
         disabled={isRunning}
+        className="awe-icon-btn"
         style={{
-          width: 32,
-          height: 32,
-          borderRadius: 8,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: isRunning ? 'wait' : 'pointer',
-          border: 'none',
           background: 'transparent',
-          color: isRunning ? '#9CA3AF' : '#00B42A',
+          borderColor: 'transparent',
+          color: isRunning ? '#cbd5e1' : '#16a34a',
+          cursor: isRunning ? 'wait' : 'pointer',
           opacity: isRunning ? 0.5 : 1,
         }}
         title={isRunning ? '运行中…' : '试运行'}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
           <polygon points="8 5 19 12 8 19 8 5" />
         </svg>
       </button>
 
-      {/* 节点数量 */}
-      <span style={{ fontSize: 12, color: '#86909C', marginLeft: 4, userSelect: 'none' }}>
+      <span style={{ fontSize: 12, color: '#64748b', marginLeft: 6, marginRight: 4, userSelect: 'none' }}>
         {nodeCount} 节点
       </span>
     </div>

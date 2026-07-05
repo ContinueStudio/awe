@@ -115,8 +115,8 @@ export function RunHistoryDrawer({
               disabled={!current || isRunning}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
-                "bg-gradient-to-r from-brand-500 to-violet-500 text-white shadow-sm",
-                "hover:from-brand-600 hover:to-violet-600",
+                "bg-slate-900 text-white",
+                "hover:bg-slate-800",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
               title={current ? `运行「${current.name}」` : '请先选择工作流'}
