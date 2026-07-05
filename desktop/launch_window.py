@@ -30,16 +30,18 @@ def main() -> int:
         print("[AWE] 缺少 pywebview，请安装: pip install pywebview")
         return 1
 
-    # file:// 协议 + Windows 路径转换
-    dist_url = DIST_INDEX.as_uri()  # 输出 file:///D:/AWE/frontend/dist/index.html
+    # 用后端 URL 而不是 file:// 协议：
+    # - file:// 下 <script src="/assets/xxx.js"> 绝对路径会解析成 file:///assets/xxx.js → 404
+    # - 后端已 serve dist，且 CORS 全开，fetch 走 8765 没问题
+    frontend_url = f"{BACKEND}/"
 
     print(f"[AWE] 启动桌面窗口")
-    print(f"[AWE]   前端: {dist_url}")
+    print(f"[AWE]   前端: {frontend_url}")
     print(f"[AWE]   后端: {BACKEND}")
 
     window = webview.create_window(
-        title="AWE - 智能体工作流引擎",
-        url=dist_url,
+        title=" ",  # 缩短窗口标题，避免显示长字符串
+        url=frontend_url,
         width=1440,
         height=900,
         min_size=(1100, 720),

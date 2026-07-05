@@ -1,8 +1,9 @@
-# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.23
+# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.24
 
 ## 1. 文档信息
 * **项目名称**：智能体工作流引擎 (Agentic Workflow Engine - AWE)
-* **文档版本**：v2.23 (桌面窗口模式: --window 参数 + PyWebview 独立窗口)
+* **文档版本**：v2.24 (窗口标题缩短 + 顶部边框配色统一)
+* **前序版本**：v2.23 (桌面窗口模式: --window 参数 + PyWebview 独立窗口)
 * **前序版本**：v2.22 (右键菜单智能删除：多选状态按批量处理)
 * **前序版本**：v2.21 (工作流列表双击进入编辑)
 * **前序版本**：v2.20 (工作流列表交互重构: Shift/Ctrl 多选 + 键控批量删除)
@@ -10,7 +11,7 @@
 * **主要负责人**：Gu Yu (资深全栈架构师)
 * **发布时间**：2026-07-06
 * **文档状态**：已锁定/已落地
-* **配套代码版本**：frontend v0.3.7c + desktop v0.1.0
+* **配套代码版本**：frontend v0.3.7e + desktop v0.1.1
 * **前序版本**：v2.18 (节点 4 角黑点彻底根因修复 + 顶栏 lawe 风格化 + BottomToolbar flex 居中)
 * **主要负责人**：Gu Yu (资深全栈架构师)
 * **发布时间**：2026-07-06
@@ -626,6 +627,23 @@
 * ✅ WebView2 进程 `msedgewebview2.exe` 出现（说明窗口已开）
 * ✅ 后端 `/api/health` 持续可访问
 * ✅ 窗口内 AWE 主页正常加载（dist 已构建）
+
+---
+
+## 1.13 v2.24 增量变更（相对 v2.23）
+- **版本号**：PRD v2.24 / desktop v0.1.1 / 2026-07-06
+- **背景**：窗口标题" AWE - 智能体工作流引擎"过长；WebView2 顶部出现黑色边框与窗口内容不一致。
+
+### 1.13.1 变更
+* **`desktop/launch_window.py`**：窗口 title 从 `AWE - 智能体工作流引擎` 改为 `" "`（一个空格），用户视觉上看不到标题
+* **`frontend/src/App.tsx`**：左导航布局的根容器背景从 `#ffffff` 改为 `#f8fafc`（侧栏色），消除 WebView2 顶部黑色边框
+* **`frontend/src/index.css`**：`html, body, #root` 基础背景色从 `#ffffff` 改为 `#f8fafc`，确保首屏无白闪
+* **构建**：1592 modules / 244.93 kB / gzip 74.41 kB，新 hash `index-DB1DyVTS.js`
+
+### 1.13.2 设计原理
+* PyWebview 在 Windows 上依赖 WebView2，后者会渲染外层深色背景
+* 让 `html/body` 背景与 WebView2 边框色（slate-50）一致 → 视觉上"无边框"
+* 编辑器模式保持 `#ffffff` 不变（白色画布更专业）
 
 ---
 

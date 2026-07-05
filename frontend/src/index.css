@@ -19,7 +19,7 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     color: #020617; /* slate-950 */
-    background: #ffffff;
+    background: #f8fafc; /* slate-50 — 与 WebView2 窗口边框色一致，消除顶部黑边 */
   }
   body {
     font-feature-settings: "tnum" 1, "cv11" 1;

@@ -560,9 +560,10 @@ export default function App() {
         </div>
       ) : (
         // 其它页面：左 240 导航 + 右内容
-        <div style={{ display: 'flex', height: '100%', width: '100%', background: '#ffffff' }}>
+        // 整层背景用 #f8fafc（侧栏色），与 WebView2 边框色一致 → 消除"顶部黑色边框"
+        <div style={{ display: 'flex', height: '100%', width: '100%', background: '#f8fafc' }}>
           <LeftNav active={navKey} onChange={navigate} health={health} />
-          <main style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden' }}>
+          <main style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden', background: '#ffffff' }}>
             {renderContent()}
           </main>
         </div>
