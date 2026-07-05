@@ -1,15 +1,16 @@
-# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.22
+# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.23
 
 ## 1. 文档信息
 * **项目名称**：智能体工作流引擎 (Agentic Workflow Engine - AWE)
-* **文档版本**：v2.22 (右键菜单智能删除：多选状态按批量处理)
+* **文档版本**：v2.23 (桌面窗口模式: --window 参数 + PyWebview 独立窗口)
+* **前序版本**：v2.22 (右键菜单智能删除：多选状态按批量处理)
 * **前序版本**：v2.21 (工作流列表双击进入编辑)
 * **前序版本**：v2.20 (工作流列表交互重构: Shift/Ctrl 多选 + 键控批量删除)
 * **前序版本**：v2.19 (工作流列表批量选择/删除 + 画布 Shift 框选)
 * **主要负责人**：Gu Yu (资深全栈架构师)
 * **发布时间**：2026-07-06
 * **文档状态**：已锁定/已落地
-* **配套代码版本**：frontend v0.3.7c
+* **配套代码版本**：frontend v0.3.7c + desktop v0.1.0
 * **前序版本**：v2.18 (节点 4 角黑点彻底根因修复 + 顶栏 lawe 风格化 + BottomToolbar flex 居中)
 * **主要负责人**：Gu Yu (资深全栈架构师)
 * **发布时间**：2026-07-06
@@ -583,6 +584,48 @@
 * ✅ TypeScript 编译零错误
 * ✅ Vite 生产构建：1592 modules / 244.91 kB / gzip 74.41 kB
 * ✅ 新 hash：`index-BPf-Mwbf.js`
+
+---
+
+## 1.12 v2.23 增量变更（相对 v2.22）
+- **版本号**：PRD v2.23 / desktop v0.1.0 / 2026-07-06
+- **背景**：`python start.py` 启动后默认调 `webbrowser.open(...)` 弹浏览器，体验是"网页软件"而非"桌面软件"。
+
+### 1.12.1 启动方式升级
+* **变更文件**：
+  - `start.py`：新增 `--window` 参数
+  - `desktop/launch_window.py`：新文件（PyWebview 独立窗口入口）
+* **新启动命令**：
+  ```bash
+  # 旧：弹浏览器
+  python start.py
+
+  # 新：弹出独立桌面窗口
+  python start.py --window
+  ```
+* **行为差异**：
+  | 模式 | 前端来源 | 窗口 |
+  |------|---------|------|
+  | 默认 | FastAPI serve dist | 浏览器 |
+  | `--window` | PyWebview `file://` 加载 dist | 独立桌面窗口（WebView2） |
+  | `--dev` | Vite dev (5173, HMR) | 浏览器 |
+
+### 1.12.2 依赖
+* **pywebview 6.2.1**：新增到 `backend/venv`
+* **WebView2 Runtime**：Windows 11 自带，Windows 10 需手动安装
+* 启动顺序：后端就绪 → `find_python()` 选出的 venv 解释器 → 调 `launch_window.py` → 阻塞至窗口关闭
+
+### 1.12.3 实现要点
+* `start.py` 启动后端后**不再起 Vite dev**（`--window` 强制走 dist 静态资源）
+* `desktop/launch_window.py` 用 `Path.as_uri()` 拼接 `file://` URL，跨平台兼容
+* 窗口关闭后，`start.py` 收到子进程退出码，正常清理后端
+* `--skip-port-clean` 与 `--window` 可组合（开发反复启动时跳过端口清理）
+
+### 1.12.4 验证
+* ✅ `python start.py --window --skip-port-clean` 启动后无浏览器弹出
+* ✅ WebView2 进程 `msedgewebview2.exe` 出现（说明窗口已开）
+* ✅ 后端 `/api/health` 持续可访问
+* ✅ 窗口内 AWE 主页正常加载（dist 已构建）
 
 ---
 

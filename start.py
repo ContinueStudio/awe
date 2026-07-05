@@ -175,12 +175,19 @@ def main() -> None:
                     help="同时启动 Vite dev server (5173, 支持 HMR)")
     ap.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
     ap.add_argument("--skip-port-clean", action="store_true", help="跳过端口清理")
+    ap.add_argument("--window", action="store_true",
+                    help="在桌面窗口中打开（不弹浏览器，需要先 npm run build）")
     args = ap.parse_args()
 
     print("=" * 56)
     print("   AWE - Agentic Workflow Engine v0.2.9")
     print("=" * 56)
-    print(f"  模式: {'dev (后端 + Vite HMR)' if args.dev else 'prod (后端 + 内置 dist)'}")
+    if args.window:
+        print("  模式: 桌面窗口（PyWebview，加载本地 dist）")
+    elif args.dev:
+        print("  模式: dev (后端 + Vite HMR)")
+    else:
+        print("  模式: prod (后端 + 内置 dist)")
     print()
 
     # ---- 前置检查 ----
@@ -240,18 +247,35 @@ def main() -> None:
     else:
         print("\n[3/4] 跳过 Vite dev（使用后端内置 dist）")
 
-    # ---- 打开浏览器 ----
-    print(f"\n[4/4] 打开浏览器 → {url}")
-    if not args.no_browser:
+    # ---- 打开浏览器 / 桌面窗口 ----
+    if args.window:
+        print(f"\n[4/4] 启动桌面窗口 → 加载 {DIST_DIR / 'index.html'}")
+        # 复用 find_python() 选出的解释器，确保能 import pywebview
+        window_py = find_python() or sys.executable
         try:
-            webbrowser.open(url)
-        except Exception as e:
-            print(f"  ⚠ 自动打开浏览器失败: {e}")
+            rc = subprocess.call(
+                [window_py, str(ROOT / "desktop" / "launch_window.py")],
+                cwd=str(ROOT),
+            )
+            if rc != 0:
+                backend.terminate()
+                sys.exit(rc)
+        except FileNotFoundError as e:
+            print(f"  ✗ 桌面窗口启动失败: {e}")
+            backend.terminate()
+            sys.exit(1)
+    else:
+        print(f"\n[4/4] 打开浏览器 → {url}")
+        if not args.no_browser:
+            try:
+                webbrowser.open(url)
+            except Exception as e:
+                print(f"  ⚠ 自动打开浏览器失败: {e}")
 
     print(f"""
 {'-' * 56}
   后端 API    :  {BACKEND_HEALTH}
-  前端界面    :  {url}
+  前端界面    :  {url if not args.window else '(桌面窗口)'}
   后端日志    :  {backend_log}
 {'  前端日志   :  ' + str(frontend_log) if args.dev else ''}
 

@@ -1,11 +1,29 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.22**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.23**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.3.7c - 2026-07-06)
+## 1. 当前进度 (v0.3.7d - 2026-07-06)
+
+### 1.0 今日进展 (2026-07-06 21:05)
+
+**【本轮】v0.3.7d：桌面窗口模式 (PRD v2.23)**
+
+- ✅ **背景**：`python start.py` 启动后默认 `webbrowser.open()` 弹浏览器，老大反馈"应该是独立窗口而不是网页"。
+- ✅ **变更**：
+  - 新增 `desktop/launch_window.py`（PyWebview 加载 `file://` dist）
+  - `start.py` 加 `--window` 参数（强制走 dist，不起 Vite dev，不弹浏览器）
+  - 子进程用 `find_python()` 选出的 venv 解释器，确保 `pywebview` 可 import
+- 🐛 **避坑**：
+  - pywebview `Window.expose(name=...)` 参数在新版本不存在 → 删除 expose 调用
+  - 默认 `python` 是 workbuddy 3.13.12（无 pywebview）→ `start.py` 子进程必须用 `find_python()` 选 venv
+- 📋 **启动命令**：
+  ```bash
+  python start.py --window --skip-port-clean
+  ```
+- 📋 **版本号**：PRD v2.22 → v2.23，desktop v0.1.0
 
 ### 1.0 今日进展 (2026-07-06 21:00)
 
