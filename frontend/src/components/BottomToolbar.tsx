@@ -1,18 +1,17 @@
 /**
- * 底部工具栏（PRD v2.13 - 2026-07-05）
+ * 底部工具栏（PRD v2.31 - 2026-07-06）
  *
- * 用户截图描述复刻：
- * - 底部悬浮，左右两个并行的工具栏
- * - **左工具栏**：5 个小图标按钮（注释/优化/排版/导出为图片/设置）+ 1 个大图标按钮（添加节点）
- * - **右工具栏**：1 个大图标按钮（运行）
+ * 左工具栏（6 图标 + 1 分割线）：
+ *   [加号圆] [注释文档] | [指针选择] [手掌拖拽] [自动排版] [更多]
  *
  * 视觉规范（PRD §9.2 严格遵循）：
  * - 零渐变、零紫色、白底 + slate-200 细边
  * - 主文字 #020617（slate-950），次文字 #64748b（slate-500）
- * - 大按钮：黑底白字（#0f172a）+ 白字
- * - 小按钮：白底 hover 浅灰（#f1f5f9），激活 indigo 态
+ * - 手工具激活态：图标 #2563EB + 背景 #DBEAFE
+ * - 小按钮：白底 hover 浅灰（#f1f5f9）
  */
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface Props {
   onTestRun: () => void;
@@ -21,7 +20,7 @@ interface Props {
   onToggleNodePanel: () => void;
   zoom: number;
   nodeCount: number;
-  /** v0.3.10：选择模式 */
+  /** v0.3.10：选择模式（false=抓手平移，true=指针选择） */
   selectMode: boolean;
   onToggleSelectMode: () => void;
   onShowLogs: () => void;
@@ -30,64 +29,7 @@ interface Props {
   onRunSelected: () => void;
 }
 
-type SmallToolId = 'comment' | 'optimize' | 'layout' | 'export' | 'settings';
-
-/* ---- 5 个小图标按钮 ---- */
-const SMALL_TOOLS: { id: SmallToolId; title: string; svg: React.ReactNode }[] = [
-  {
-    id: 'comment',
-    title: '注释',
-    svg: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'optimize',
-    title: '优化',
-    svg: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 3l1.9 5.85h6.1l-4.95 3.6 1.9 5.85L12 14.7l-4.95 3.6 1.9-5.85L4 8.85h6.1L12 3z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'layout',
-    title: '排版',
-    svg: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7" />
-        <rect x="14" y="3" width="7" height="7" />
-        <rect x="14" y="14" width="7" height="7" />
-        <rect x="3" y="14" width="7" height="7" />
-      </svg>
-    ),
-  },
-  {
-    id: 'export',
-    title: '导出为图片',
-    svg: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2" />
-        <circle cx="8.5" cy="8.5" r="1.5" />
-        <path d="M21 15l-5-5L5 21" />
-      </svg>
-    ),
-  },
-  {
-    id: 'settings',
-    title: '设置',
-    svg: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-      </svg>
-    ),
-  },
-];
-
-/* ---- 工具栏容器（白底圆角卡） ---- */
+/* ---- 工具栏容器 ---- */
 const TOOLBAR_BASE: React.CSSProperties = {
   background: '#ffffff',
   border: '1px solid #e2e8f0',
@@ -100,168 +42,200 @@ const TOOLBAR_BASE: React.CSSProperties = {
   pointerEvents: 'auto',
 };
 
-/* ---- 小图标按钮 ---- */
 const SMALL_BTN: React.CSSProperties = {
-  width: 32,
-  height: 32,
-  borderRadius: 6,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'transparent',
-  border: 'none',
-  color: '#475569',
-  cursor: 'pointer',
+  width: 32, height: 32, borderRadius: 6,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  background: 'transparent', border: 'none',
+  color: '#475569', cursor: 'pointer',
   transition: 'background 0.15s, color 0.15s',
 };
 
+/* 分割线：浅灰色 #E5E7EB，垂直细线，不贴顶底 */
 const DIVIDER: React.CSSProperties = {
-  width: 1,
-  height: 20,
-  background: '#e2e8f0',
-  margin: '0 2px',
-  flexShrink: 0,
+  width: 1, height: 20, background: '#E5E7EB',
+  margin: '0 2px', flexShrink: 0,
 };
 
-/* ---- 大图标按钮基础 ---- */
 const BIG_BTN: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 6,
-  height: 36,
-  padding: '0 16px',
-  borderRadius: 8,
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-  border: 'none',
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  gap: 6, height: 36, padding: '0 16px', borderRadius: 8,
+  fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
   transition: 'background 0.15s',
 };
 
+type ToolId = 'none' | 'more';
+
 export function BottomToolbar({
-  onTestRun,
-  isRunning,
-  showNodePanel,
-  onToggleNodePanel,
-  zoom,
-  nodeCount,
-  selectMode,
-  onToggleSelectMode,
+  onTestRun, isRunning,
+  showNodePanel, onToggleNodePanel,
+  zoom, nodeCount,
+  selectMode, onToggleSelectMode,
   onShowLogs,
-  selectedNodeIds,
-  onRunSelected,
+  selectedNodeIds, onRunSelected,
 }: Props) {
-  const [activeTool, setActiveTool] = useState<SmallToolId | null>(null);
   const selCount = selectedNodeIds.size;
+
+  // --- 更多菜单 ---
+  const [showMore, setShowMore] = useState(false);
+  const moreRef = useRef<HTMLButtonElement>(null);
+  const [moreRect, setMoreRect] = useState<DOMRect | null>(null);
+  useEffect(() => { if (!showMore) setMoreRect(null); }, [showMore]);
+
+  const openMore = () => {
+    const r = moreRef.current?.getBoundingClientRect();
+    if (r) setMoreRect(r);
+    setShowMore(true);
+  };
+
   return (
-    <div
-      style={{
-        // v0.3.6 加固：定位改用 flex 全屏容器 + 内部 toolbar 居中
-        //  - 外层 fixed inset:0 + flex bottom/center，无 transform，fixed 严格相对视口
-        //  - 内部 toolbar 不带任何 transform，pointer-events: auto 接收点击
-        //  - 之前用 transform: translateX(-50%) 实现居中，会让此 div 自己变成 fixed containing block
-        //    在某些嵌套 transform / will-change 场景下会受父容器变换影响导致 toolbar 偏移
-        position: 'fixed',
-        left: 0,
-        right: 0,
-        bottom: 16,
-        zIndex: 25,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-        pointerEvents: 'none',
-      }}
-    >
-      {/* ===== 左工具栏：5 小图标 + 1 大图标（添加节点） ===== */}
-      <div style={{ ...TOOLBAR_BASE, paddingLeft: 6, paddingRight: 6 }}>
-        {/* 5 个小图标按钮 */}
-        {SMALL_TOOLS.map((t) => {
-          const isActive = activeTool === t.id;
-          return (
-            <button
-              key={t.id}
-              title={t.title}
-              style={{
-                ...SMALL_BTN,
-                background: isActive ? 'var(--primary, #3b82f6)' : 'transparent',
-                color: isActive ? '#ffffff' : '#475569',
-              }}
-              onClick={() => setActiveTool((cur) => (cur === t.id ? null : t.id))}
-              onMouseEnter={(e) => {
-                if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9';
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-              }}
-            >
-              {t.svg}
-            </button>
-          );
-        })}
-
-        <div style={DIVIDER} />
-
-        {/* 选择模式按钮（小图标） */}
+    <div style={{
+      position: 'fixed', left: 0, right: 0, bottom: 16, zIndex: 25,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      gap: 10, pointerEvents: 'none',
+    }}>
+      {/* ===== 左工具栏 ===== */}
+      <div style={TOOLBAR_BASE}>
+        {/* 1. 圆形加号按钮 — 新建节点 */}
         <button
-          onClick={onToggleSelectMode}
-          title={selectMode ? '当前：选择模式（点击空白框选）' : '当前：平移模式（点击空白平移）'}
+          onClick={onToggleNodePanel}
+          title="添加节点"
           style={{
             ...SMALL_BTN,
-            background: selectMode ? 'var(--primary, #3b82f6)' : 'transparent',
-            color: selectMode ? '#ffffff' : '#475569',
+            background: showNodePanel ? '#374151' : '#4B5563',
+            color: '#FFFFFF',
+            borderRadius: '50%',
           }}
           onMouseEnter={(e) => {
-            if (!selectMode) (e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9';
+            (e.currentTarget as HTMLElement).style.background = showNodePanel ? '#4B5563' : '#374151';
           }}
           onMouseLeave={(e) => {
-            if (!selectMode) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+            (e.currentTarget as HTMLElement).style.background = showNodePanel ? '#374151' : '#4B5563';
           }}
         >
-          {/* 光标/选择图标 */}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </button>
+
+        {/* 2. 带加号文档 — 添加注释 */}
+        <button
+          title="添加注释"
+          style={SMALL_BTN}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f1f5f9'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="12" y1="18" x2="12" y2="12" />
+            <line x1="9" y1="15" x2="15" y2="15" />
+          </svg>
+        </button>
+
+        {/* 分割线 — 左侧（创建/注释）与右侧（画布操作）的分界 */}
+        <div style={DIVIDER} />
+
+        {/* 3. 鼠标指针选择工具 */}
+        <button
+          onClick={onToggleSelectMode}
+          title={selectMode ? '选择模式（点击空白框选，点击节点选中）' : '切换到选择模式'}
+          style={{
+            ...SMALL_BTN,
+            background: selectMode ? '#DBEAFE' : 'transparent',
+            color: selectMode ? '#2563EB' : '#374151',
+            borderRadius: 6,
+          }}
+          onMouseEnter={(e) => {
+            if (!selectMode) (e.currentTarget as HTMLElement).style.background = '#f1f5f9';
+          }}
+          onMouseLeave={(e) => {
+            if (!selectMode) (e.currentTarget as HTMLElement).style.background = 'transparent';
+          }}
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
             <path d="M13 13l6 6" />
           </svg>
         </button>
 
-        {/* 大图标按钮：添加节点（品牌蓝底白字） */}
+        {/* 4. 手掌拖拽工具 — 默认激活 */}
         <button
-          onClick={onToggleNodePanel}
-          title="添加节点"
+          onClick={onToggleSelectMode}
+          title={selectMode ? '切换到抓手平移模式' : '抓手模式（拖动画布平移，默认激活）'}
           style={{
-            ...BIG_BTN,
-            background: showNodePanel ? 'var(--primary-hover, #2563eb)' : 'var(--primary, #3b82f6)',
-            color: '#ffffff',
-            boxShadow: '0 2px 6px rgba(59, 130, 246, 0.25)',
+            ...SMALL_BTN,
+            background: !selectMode ? '#DBEAFE' : 'transparent',
+            color: !selectMode ? '#2563EB' : '#374151',
+            borderRadius: 6,
           }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary-hover, #2563eb)';
+            if (selectMode) (e.currentTarget as HTMLElement).style.background = '#f1f5f9';
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = showNodePanel ? 'var(--primary-hover, #2563eb)' : 'var(--primary, #3b82f6)';
+            if (selectMode) (e.currentTarget as HTMLElement).style.background = 'transparent';
           }}
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 11.5V6a2 2 0 0 0-4 0v4" />
+            <path d="M14 12V4a2 2 0 0 0-4 0v8" />
+            <path d="M10 13V8a2 2 0 0 0-4 0v6" />
+            <path d="M6 14v-3a2 2 0 0 0-4 0v7a2 2 0 0 0 2 2h9.5a2 2 0 0 0 1.8-1.1l2.5-5a1 1 0 0 0-.9-1.4h-3.5" />
           </svg>
-          添加节点
+        </button>
+
+        {/* 5. 四宫格加号 — 自动排版 */}
+        <button
+          title="自动排版节点"
+          style={SMALL_BTN}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f1f5f9'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="8" height="8" rx="1" />
+            <rect x="13" y="3" width="8" height="8" rx="1" />
+            <line x1="15" y1="7" x2="19" y2="7" />
+            <line x1="17" y1="5" x2="17" y2="9" />
+            <rect x="3" y="13" width="8" height="8" rx="1" />
+            <rect x="13" y="13" width="8" height="8" rx="1" />
+          </svg>
+        </button>
+
+        {/* 6. 三点更多 */}
+        <button
+          ref={moreRef}
+          onClick={openMore}
+          title="更多"
+          style={{
+            ...SMALL_BTN,
+            background: showMore ? '#f1f5f9' : 'transparent',
+          }}
+          onMouseEnter={(e) => {
+            if (!showMore) (e.currentTarget as HTMLElement).style.background = '#f1f5f9';
+          }}
+          onMouseLeave={(e) => {
+            if (!showMore) (e.currentTarget as HTMLElement).style.background = 'transparent';
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#374151">
+            <circle cx="6" cy="12" r="2" />
+            <circle cx="12" cy="12" r="2" />
+            <circle cx="18" cy="12" r="2" />
+          </svg>
         </button>
       </div>
 
-      {/* ===== 右工具栏：日志 + 运行 ===== */}
-      <div style={{ ...TOOLBAR_BASE, paddingLeft: 6, paddingRight: 6 }}>
-        {/* 日志按钮（小图标） */}
+      {/* ===== 右工具栏 ===== */}
+      <div style={TOOLBAR_BASE}>
+        {/* 日志按钮 */}
         <button
           onClick={onShowLogs}
           title="运行日志"
           style={SMALL_BTN}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f1f5f9'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
             <polyline points="14 2 14 8 20 8" />
             <line x1="16" y1="13" x2="8" y2="13" />
@@ -272,7 +246,7 @@ export function BottomToolbar({
 
         <div style={DIVIDER} />
 
-        {/* v0.3.11：框选运行按钮（选中多节点时显示） */}
+        {/* 框选运行 */}
         {selCount >= 2 && (
           <>
             <button
@@ -282,29 +256,26 @@ export function BottomToolbar({
               style={{
                 ...BIG_BTN,
                 background: isRunning ? '#334155' : '#10b981',
-                color: '#ffffff',
-                cursor: isRunning ? 'wait' : 'pointer',
+                color: '#ffffff', cursor: isRunning ? 'wait' : 'pointer',
                 opacity: isRunning ? 0.85 : 1,
               }}
               onMouseEnter={(e) => {
                 if (isRunning) return;
-                (e.currentTarget as HTMLButtonElement).style.background = '#059669';
+                (e.currentTarget as HTMLElement).style.background = '#059669';
               }}
               onMouseLeave={(e) => {
                 if (isRunning) return;
-                (e.currentTarget as HTMLButtonElement).style.background = '#10b981';
+                (e.currentTarget as HTMLElement).style.background = '#10b981';
               }}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="6 4 20 12 6 20 6 4" />
-              </svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4" /></svg>
               运行选中 ({selCount})
             </button>
             <div style={DIVIDER} />
           </>
         )}
 
-        {/* 大图标按钮：运行（品牌蓝底白字 + 三角播放图标） */}
+        {/* 运行 */}
         <button
           onClick={onTestRun}
           disabled={isRunning}
@@ -312,35 +283,72 @@ export function BottomToolbar({
           style={{
             ...BIG_BTN,
             background: isRunning ? '#334155' : 'var(--primary, #3b82f6)',
-            color: '#ffffff',
-            opacity: isRunning ? 0.85 : 1,
+            color: '#ffffff', opacity: isRunning ? 0.85 : 1,
             cursor: isRunning ? 'wait' : 'pointer',
             boxShadow: '0 2px 6px rgba(59, 130, 246, 0.25)',
           }}
           onMouseEnter={(e) => {
             if (isRunning) return;
-            (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary-hover, #2563eb)';
+            (e.currentTarget as HTMLElement).style.background = 'var(--primary-hover, #2563eb)';
           }}
           onMouseLeave={(e) => {
             if (isRunning) return;
-            (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary, #3b82f6)';
+            (e.currentTarget as HTMLElement).style.background = 'var(--primary, #3b82f6)';
           }}
         >
           {isRunning ? (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-            </svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
           ) : (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="6 4 20 12 6 20 6 4" />
-            </svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4" /></svg>
           )}
           {isRunning ? '运行中…' : '运行'}
         </button>
       </div>
+
+      {/* 更多菜单弹窗 */}
+      {showMore && moreRect && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setShowMore(false)}>
+          <div
+            style={{
+              position: 'fixed',
+              bottom: moreRect.top - 8,
+              left: moreRect.left + moreRect.width / 2,
+              transform: 'translate(-50%, -100%)',
+              background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 10,
+              boxShadow: '0 6px 24px rgba(15,23,42,0.12)', padding: 6,
+              minWidth: 180, zIndex: 51,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {[
+              { label: '导出画布为图片', action: () => { setShowMore(false); } },
+              { label: '撤销 / 重做', action: () => { setShowMore(false); } },
+              { label: '全局设置', action: () => { setShowMore(false); } },
+              { label: '快捷键说明', action: () => { setShowMore(false); } },
+              { label: '清空画布', action: () => { setShowMore(false); } },
+            ].map((item) => (
+              <button
+                key={item.label}
+                onClick={item.action}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '7px 10px', borderRadius: 6, border: 'none',
+                  background: 'transparent', color: '#374151',
+                  fontSize: 13, cursor: 'pointer',
+                  transition: 'background 0.1s',
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f1f5f9'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
 
-/* 让 zoom / nodeCount prop 避免 unused warning（同时暴露给未来用） */
 export type { Props as BottomToolbarProps };
