@@ -33,6 +33,10 @@ interface Props {
   selectMode?: boolean;
   /** v0.3.11: 多选变化回调 */
   onSelectedIdsChange?: (ids: Set<string>) => void;
+  /** v0.3.x: 节点复制回调 */
+  onDuplicateNode?: (nodeId: string) => void;
+  /** v0.3.x: 粘贴回调 */
+  onPaste?: () => void;
 }
 
 const DEFAULT_VIEW = { x: 0, y: 0, scale: 1 };
@@ -51,6 +55,8 @@ export function Canvas({
   onViewChange,
   selectMode = false,
   onSelectedIdsChange,
+  onDuplicateNode,
+  onPaste,
 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -61,6 +67,9 @@ export function Canvas({
   const [panning, setPanning] = useState<{ x: number; y: number } | null>(null);
   // 框选状态
   const [boxSelect, setBoxSelect] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  // 右键菜单
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  const ctxMenuRef = useRef<HTMLDivElement | null>(null);
 
   const nodeDefs = useMemo(() => Object.fromEntries(nodes.map((n) => [n.type, n])), [nodes]);
 
@@ -119,6 +128,8 @@ export function Canvas({
   // ---- 画布平移 / 框选 / 取消连线 ----
   const onCanvasMouseDown = (e: React.MouseEvent) => {
     if (e.target !== svgRef.current) return;
+    // 关闭右键菜单
+    setCtxMenu(null);
     // 有拖拽中的连线 -> 取消
     if (draftEdge) {
       cancelDraftEdge();
@@ -136,6 +147,28 @@ export function Canvas({
     }
     setPanning({ x: e.clientX - view.x, y: e.clientY - view.y });
   };
+
+  // ---- 画布右键菜单 ----
+  const onCanvasContextMenu = (e: React.MouseEvent) => {
+    if (e.target !== svgRef.current) return;
+    e.preventDefault();
+    setCtxMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  // 关闭右键菜单
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const onClick = (e: MouseEvent) => {
+      if (ctxMenuRef.current && !ctxMenuRef.current.contains(e.target as Node)) setCtxMenu(null);
+    };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [ctxMenu]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -358,6 +391,7 @@ export function Canvas({
         ref={svgRef}
         className="awe-canvas select-none"
         onMouseDown={onCanvasMouseDown}
+        onContextMenu={onCanvasContextMenu}
         onWheel={onWheel}
       >
         <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>
@@ -442,6 +476,7 @@ export function Canvas({
                       node={n}
                       def={def}
                       selected={selectedIds.has(n.id)}
+                      onDuplicate={() => onDuplicateNode?.(n.id)}
                       onPointerDown={() => {}}
                       onStartEdge={(e) => startEdge(e, n.id)}
                       onCompleteEdge={(e) => completeEdge(e, n.id)}
@@ -480,6 +515,42 @@ export function Canvas({
           })}
         </g>
       </svg>
+
+      {/* 画布右键菜单 */}
+      {ctxMenu && (
+        <div
+          ref={ctxMenuRef}
+          style={{
+            position: 'fixed',
+            zIndex: 50,
+            top: ctxMenu.y,
+            left: ctxMenu.x,
+            background: '#ffffff',
+            borderRadius: 8,
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+            padding: '4px',
+            minWidth: 140,
+          }}
+        >
+          <button
+            onClick={() => { onPaste?.(); setCtxMenu(null); }}
+            style={{
+              width: '100%',
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '6px 10px', borderRadius: 4, fontSize: 13,
+              border: 'none', background: 'transparent', cursor: 'pointer',
+              color: '#020617', textAlign: 'left',
+              transition: 'background 0.12s',
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+          >
+            <span style={{ fontSize: 12, color: '#64748b', width: 16, textAlign: 'center' }}>📋</span>
+            粘贴 Ctrl+V
+          </button>
+        </div>
+      )}
     </div>
   );
 }

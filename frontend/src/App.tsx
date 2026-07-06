@@ -12,7 +12,7 @@
  * - 文字主色 #020617（slate-950），边框 #e2e8f0（slate-200）
  * - 字体 Inter
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import React from 'react';
 import { ArrowLeft, Undo2, Redo2, History as HistoryIcon, Loader2, Rocket } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -27,7 +27,8 @@ import { BottomToolbar } from './components/BottomToolbar';
 import { ConfigPanel } from './components/ConfigPanel';
 import { ZoomControls } from './components/ZoomControls';
 import { RunHistoryDrawer } from './components/RunHistoryDrawer';
-import type { NodeDefinition, Workflow, WorkflowGraph } from '@/lib/types';
+import { ConfirmDialog } from './components/ConfirmDialog';
+import type { NodeDefinition, Workflow, WorkflowGraph, CanvasNode } from '@/lib/types';
 
 const EMPTY_GRAPH: WorkflowGraph = { nodes: [], edges: [] };
 
@@ -87,6 +88,69 @@ export default function App() {
   const [canvasView, setCanvasView] = useState<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 1 });
   const [toast, setToast] = useState<string | null>(null);
 
+  // v0.3.x: 关闭程序确认对话框
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  const pendingCloseRef = useRef(false);
+
+  // v0.3.x: 节点剪贴板（支持跨工作流粘贴）
+  const [clipboard, setClipboard] = useState<CanvasNode[] | null>(null);
+
+  // 复制选中节点
+  const copySelectedNodes = useCallback(() => {
+    if (view.kind !== 'editor') return;
+    const selIds = selectedNodeIds.size > 0 ? selectedNodeIds : (selectedNodeId ? new Set([selectedNodeId]) : new Set());
+    if (selIds.size === 0) return;
+    const copied = graph.nodes.filter((n) => selIds.has(n.id)).map((n) => ({ ...n, config: { ...(n.config || {}) } }));
+    setClipboard(copied);
+    setToast(`已复制 ${copied.length} 个节点`);
+  }, [view, graph, selectedNodeIds, selectedNodeId]);
+
+  // 粘贴剪贴板节点
+  const pasteNodes = useCallback(() => {
+    if (view.kind !== 'editor' || !clipboard || clipboard.length === 0) return;
+    const offsetX = 40 * (graph.nodes.length + 1);
+    const offsetY = 40 * (graph.nodes.length + 1);
+    const newNodes: CanvasNode[] = clipboard.map((n, i) => ({
+      ...n,
+      id: `n_${Date.now().toString(36)}_${i}`,
+      config: { ...(n.config || {}) },
+      meta: {
+        ...(n.meta || {}),
+        x: (n.meta?.x ?? 200) + offsetX,
+        y: (n.meta?.y ?? 120) + offsetY,
+      },
+    }));
+    setGraph((prev) => ({ ...prev, nodes: [...prev.nodes, ...newNodes] }));
+    const newIds = new Set(newNodes.map((n) => n.id));
+    setSelectedNodeIdsState(newIds);
+    setToast(`已粘贴 ${newNodes.length} 个节点`);
+  }, [view, clipboard, graph.nodes.length]);
+
+  // 复制单个节点（画布复制按钮）
+  const duplicateNode = useCallback((nodeId: string) => {
+    const node = graph.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    const newId = `n_${Date.now().toString(36)}`;
+    const offsetX = 50;
+    const offsetY = 50;
+    const newNode: CanvasNode = {
+      ...node,
+      id: newId,
+      config: { ...(node.config || {}) },
+      meta: {
+        ...(node.meta || {}),
+        x: (node.meta?.x ?? 200) + offsetX,
+        y: (node.meta?.y ?? 120) + offsetY,
+      },
+    };
+    // 同时存入剪贴板（支持跨工作流粘贴）
+    setClipboard([{ ...node, config: { ...(node.config || {}) } }]);
+    setGraph((prev) => ({ ...prev, nodes: [...prev.nodes, newNode] }));
+    setSelectedNodeIdsState(new Set([newId]));
+    setSelectedNodeId(newId);
+    setConfigOpen(false);
+  }, [graph]);
+
   // v2.37：frameless 模式下整栏拖动 handler，主标题栏和编辑器顶栏共用
   const onWindowDragMouseDown = useWindowDrag();
 
@@ -97,6 +161,16 @@ export default function App() {
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth({ ok: false, version: 'unknown' }));
     api.listNodes().then((d) => setNodes(d.nodes)).catch(console.error);
+  }, []);
+
+  // v0.3.x: 注册全局关闭确认函数，供 Python closing 事件调用
+  useEffect(() => {
+    (window as any).__showCloseConfirm = () => {
+      setCloseConfirmOpen(true);
+    };
+    return () => {
+      delete (window as any).__showCloseConfirm;
+    };
   }, []);
 
   // toast 自动消失
@@ -216,17 +290,33 @@ export default function App() {
     }
   }, [view, currentName, graph]);
 
-  // Ctrl+S 保存
+  // Ctrl+S 保存 / Ctrl+C 复制 / Ctrl+V 粘贴
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (isInput) return; // 不拦截输入框内的快捷键
+
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         if (view.kind === 'editor') handleSave();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        if (view.kind === 'editor') {
+          e.preventDefault();
+          copySelectedNodes();
+        }
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        if (view.kind === 'editor') {
+          e.preventDefault();
+          pasteNodes();
+        }
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [handleSave, view]);
+  }, [handleSave, view, copySelectedNodes, pasteNodes]);
 
   const handleRun = useCallback(async () => {
     if (view.kind !== 'editor') return;
@@ -515,6 +605,8 @@ export default function App() {
               onWorkflowName={setCurrentName}
               onSelectNode={(id) => { setSelectedNodeId(id); setConfigOpen(!!id); }}
               onSave={() => {}}
+              onDuplicateNode={duplicateNode}
+              onPaste={() => pasteNodes()}
               view={canvasView}
               onViewChange={setCanvasView}
               selectMode={selectMode}
@@ -635,7 +727,7 @@ export default function App() {
         // 整层背景用 #f8fafc（侧栏色），与 WebView2 边框色一致 → 消除"顶部黑色边框"
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: '#f8fafc' }}>
           {/* v2.27：frameless 模式下的自定义标题栏 */}
-          <CustomTitleBar onMouseDown={onWindowDragMouseDown} />
+          <CustomTitleBar onMouseDown={onWindowDragMouseDown} onClose={() => setCloseConfirmOpen(true)} />
           <div style={{ display: 'flex', flex: 1, minHeight: 0, width: '100%' }}>
             <LeftNav active={navKey} onChange={navigate} health={health} />
             <main style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden', background: '#ffffff' }}>
@@ -644,6 +736,30 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* 关闭程序确认对话框 */}
+      <ConfirmDialog
+        open={closeConfirmOpen}
+        title="关闭程序"
+        message="确定要退出 AWE 吗？未保存的更改可能会丢失。"
+        confirmText="退出"
+        cancelText="取消"
+        danger={false}
+        onConfirm={() => {
+          setCloseConfirmOpen(false);
+          pendingCloseRef.current = true;
+          const api = (window as any).pywebview?.api;
+          if (api?.force_close) {
+            api.force_close();
+          } else if (api?.close_window) {
+            api.close_window();
+          }
+        }}
+        onCancel={() => {
+          setCloseConfirmOpen(false);
+          pendingCloseRef.current = false;
+        }}
+      />
     </>
   );
 }
@@ -702,7 +818,7 @@ function useWindowDrag() {
    → 用 frameless=True 去掉原生 chrome
    → 前端自绘标题栏：slate-50 背景 + 拖动区 + 最小/最大/关闭
    → 通过 window.pywebview.api.{minimize,close}() 与 Python 通讯 */
-function CustomTitleBar({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => void }) {
+function CustomTitleBar({ onMouseDown, onClose }: { onMouseDown: (e: React.MouseEvent) => void; onClose?: () => void }) {
   const inPywebview = typeof (window as any).pywebview !== 'undefined';
   const api = inPywebview ? (window as any).pywebview.api : null;
 
@@ -746,7 +862,7 @@ function CustomTitleBar({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) =>
           <svg width="12" height="12" viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" /></svg>
         </button>
         <button
-          onClick={() => api?.close_window?.()}
+          onClick={() => onClose ? onClose() : api?.close_window?.()}
           title="关闭"
           style={{
             width: 32, height: 32, border: 'none', background: 'transparent',

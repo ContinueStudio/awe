@@ -117,7 +117,7 @@ def _run_gui(webview, stop_event: threading.Event) -> None:
         width=1440,
         height=900,
         min_size=(1100, 720),
-        confirm_close=True,
+        confirm_close=False,
         text_select=True,
         frameless=True,
         easy_drag=False,
@@ -185,6 +185,18 @@ def _run_gui(webview, stop_event: threading.Event) -> None:
 
     window.expose(minimize)
     window.expose(close_window)
+
+    # 拦截系统关闭事件：通知前端显示自定义确认对话框（无系统提示音）
+    def on_closing():
+        try:
+            window.evaluate_js(
+                'window.__showCloseConfirm && window.__showCloseConfirm()'
+            )
+        except Exception:
+            pass
+        return False  # 阻止默认关闭，由前端确认后调用 close_window
+
+    window.events.closing += on_closing
 
     webview.start()
 

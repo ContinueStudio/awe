@@ -1,8 +1,9 @@
-# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.29
+# 📄 产品需求文档 (PRD) - 智能体工作流引擎 (AWE) v2.30
 
 ## 1. 文档信息
 * **项目名称**：智能体工作流引擎 (Agentic Workflow Engine - AWE)
-* **文档版本**：v2.29 (WebView2 拖动用 pywebview DRAG_REGION_SELECTOR)
+* **文档版本**：v2.30 (复制粘贴功能 + 路径参数暴露 + 自定义确认对话框)
+* **前序版本**：v2.29 (WebView2 拖动用 pywebview DRAG_REGION_SELECTOR)
 * **前序版本**：v2.28 (禁用文字选中 + 标题栏可拖动)
 * **前序版本**：v2.26 (start.bat GBK 编码修复 + 必测后发)
 * **前序版本**：v2.25 (一键启动脚本默认走桌面窗口模式)

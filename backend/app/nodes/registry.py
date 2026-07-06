@@ -185,6 +185,7 @@ NODES: List[NodeDefinition] = [
         config_schema={
             "type": "object",
             "properties": {
+                "storage_path": {"type": "string", "title": "存储路径（ChromaDB 目录）", "default": "./data/chroma"},
                 "operation": {"type": "string", "enum": ["upsert", "query"], "default": "query"},
                 "collection": {"type": "string", "default": "default"},
                 "top_k": {"type": "integer", "default": 4, "minimum": 1, "maximum": 50},
@@ -202,6 +203,7 @@ NODES: List[NodeDefinition] = [
         config_schema={
             "type": "object",
             "properties": {
+                "db_path": {"type": "string", "title": "数据库路径", "default": "./data/awe.db"},
                 "operation": {"type": "string", "enum": ["select", "insert", "update", "delete"]},
                 "table": {"type": "string"},
                 "where": {"type": "string", "title": "WHERE 子句 (raw SQL)"},
@@ -222,10 +224,10 @@ NODES: List[NodeDefinition] = [
         config_schema={
             "type": "object",
             "properties": {
-                "filename": {"type": "string", "title": "文件名", "default": "output.xlsx"},
+                "file_path": {"type": "string", "title": "文件路径（含文件名）", "default": "./data/output.xlsx"},
                 "sheet_name": {"type": "string", "title": "工作表名", "default": "Sheet1"},
             },
-            "required": ["filename"],
+            "required": ["file_path"],
         },
     ),
     # SQLite
@@ -240,6 +242,7 @@ NODES: List[NodeDefinition] = [
         config_schema={
             "type": "object",
             "properties": {
+                "db_path": {"type": "string", "title": "数据库路径", "default": "./data/awe.db"},
                 "operation": {"type": "string", "enum": ["select", "insert", "update", "delete"]},
                 "table": {"type": "string"},
                 "where": {"type": "string", "title": "WHERE 子句 (raw SQL)"},
@@ -298,6 +301,7 @@ NODES: List[NodeDefinition] = [
             "type": "object",
             "properties": {
                 "code": {"type": "string", "title": "Python 代码", "format": "textarea"},
+                "working_dir": {"type": "string", "title": "工作目录（文件读写路径）", "default": "./data/skills"},
                 "timeout_sec": {"type": "integer", "default": 30, "minimum": 1, "maximum": 120},
             },
             "required": ["code"],

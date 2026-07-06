@@ -119,10 +119,12 @@ async def run_user_code(
     code: str,
     timeout: int | None = None,
     extra_globals: Dict[str, Any] | None = None,
+    working_dir: str | None = None,
 ) -> Dict[str, Any]:
     """异步执行用户脚本。
 
     extra_globals 注入额外的全局变量（最常用的是 inputs）。
+    working_dir 指定的工作目录路径会注入为全局变量，方便脚本文件读写。
     仍然受 _DENY_NAMES 审计；超过 timeout 强制中断。
     """
     timeout = timeout or settings.skill_sandbox_timeout_sec
@@ -137,6 +139,8 @@ async def run_user_code(
         "__builtins__": _SAFE_BUILTINS,
         "result": None,
     }
+    if working_dir:
+        glb["working_dir"] = working_dir
     if extra_globals:
         for k, v in extra_globals.items():
             if k not in _DENY_NAMES:

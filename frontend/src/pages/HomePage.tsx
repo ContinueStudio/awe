@@ -14,6 +14,7 @@ import {
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { RunHistoryDrawer } from '@/components/RunHistoryDrawer';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { Workflow } from '@/lib/types';
 
 type HealthInfo = { ok: boolean; version: string };
@@ -66,6 +67,43 @@ export function WorkflowsPage({
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
+  // v0.3.x: 页面轻量 toast（替代 alert）
+  const [pageToast, setPageToast] = useState<{ message: string; type: 'info' | 'error' } | null>(null);
+  useEffect(() => {
+    if (!pageToast) return;
+    const t = setTimeout(() => setPageToast(null), 2500);
+    return () => clearTimeout(t);
+  }, [pageToast]);
+
+  // v0.3.x: 自定义确认对话框状态
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTitle, setConfirmTitle] = useState('');
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [confirmDanger, setConfirmDanger] = useState(false);
+  const confirmCallbackRef = useRef<(() => void) | null>(null);
+
+  const showConfirm = (title: string, message: string, danger = false, onConfirm: () => void) => {
+    setConfirmTitle(title);
+    setConfirmMessage(message);
+    setConfirmDanger(danger);
+    confirmCallbackRef.current = onConfirm;
+    setConfirmOpen(true);
+  };
+
+  const handleConfirm = () => {
+    setConfirmOpen(false);
+    if (confirmCallbackRef.current) {
+      const cb = confirmCallbackRef.current;
+      confirmCallbackRef.current = null;
+      cb();
+    }
+  };
+
+  const handleConfirmCancel = () => {
+    setConfirmOpen(false);
+    confirmCallbackRef.current = null;
+  };
+
   useEffect(() => {
     const refresh = () => api.listWorkflows().then((d) => setWorkflows(d.workflows as any)).catch(console.error);
     refresh();
@@ -93,11 +131,17 @@ export function WorkflowsPage({
   };
 
   const deleteOne = async (id: string) => {
-    if (!confirm('确定删除这个工作流？此操作不可恢复。')) return;
-    await fetch(`/api/workflows/${id}`, { method: 'DELETE' });
-    setMenu(null);
-    const d = await api.listWorkflows();
-    setWorkflows(d.workflows as any);
+    showConfirm(
+      '删除工作流',
+      '确定删除这个工作流？此操作不可恢复。',
+      true,
+      async () => {
+        await fetch(`/api/workflows/${id}`, { method: 'DELETE' });
+        setMenu(null);
+        const d = await api.listWorkflows();
+        setWorkflows(d.workflows as any);
+      }
+    );
   };
 
   // 智能删除：多选时按选择删除；右键菜单则按 menu.id 扩展为选中范围
@@ -113,20 +157,26 @@ export function WorkflowsPage({
 
   const batchDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`确定删除选中的 ${selectedIds.size} 个工作流？此操作不可恢复。`)) return;
-    setDeleting(true);
-    try {
-      await api.batchDeleteWorkflows(Array.from(selectedIds));
-      setSelectedIds(new Set());
-      setLastSelectedId(null);
-      const d = await api.listWorkflows();
-      setWorkflows(d.workflows as any);
-    } catch (e) {
-      console.error('batch delete failed', e);
-      alert('批量删除失败：' + (e as Error).message);
-    } finally {
-      setDeleting(false);
-    }
+    showConfirm(
+      '批量删除工作流',
+      `确定删除选中的 ${selectedIds.size} 个工作流？此操作不可恢复。`,
+      true,
+      async () => {
+        setDeleting(true);
+        try {
+          await api.batchDeleteWorkflows(Array.from(selectedIds));
+          setSelectedIds(new Set());
+          setLastSelectedId(null);
+          const d = await api.listWorkflows();
+          setWorkflows(d.workflows as any);
+        } catch (e) {
+          console.error('batch delete failed', e);
+          showConfirm('删除失败', '批量删除失败：' + (e as Error).message, false, () => {});
+        } finally {
+          setDeleting(false);
+        }
+      }
+    );
   };
 
   // 名称点击：支持 Shift 多选 + Ctrl/Cmd 多选 + 范围选择
@@ -210,10 +260,10 @@ export function WorkflowsPage({
     const url = `${location.origin}/api/workflows/${wf.id}/share`;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(url).then(() => {
-        alert(`分享链接已复制到剪贴板：\n${url}`);
+        setPageToast({ message: '分享链接已复制到剪贴板', type: 'info' });
       });
     } else {
-      prompt('复制此分享链接：', url);
+      showConfirm('复制分享链接', url, false, () => {});
     }
     setMenu(null);
   };
@@ -245,7 +295,7 @@ export function WorkflowsPage({
       setWorkflows(d.workflows as any);
     } catch (e) {
       console.error('home run failed', e);
-      alert('运行失败：' + (e as Error).message);
+      setPageToast({ message: '运行失败：' + (e as Error).message, type: 'error' });
     } finally {
       setRunningIds((m) => ({ ...m, [id]: false }));
     }
@@ -491,6 +541,37 @@ export function WorkflowsPage({
         onClose={() => setLogWf(null)}
         isRunning={logWf ? !!runningIds[logWf.id] : false}
       />
+
+      {/* 自定义确认对话框 */}
+      <ConfirmDialog
+        open={confirmOpen}
+        title={confirmTitle}
+        message={confirmMessage}
+        danger={confirmDanger}
+        onConfirm={handleConfirm}
+        onCancel={handleConfirmCancel}
+      />
+
+      {/* 页面轻量 Toast（替代 alert） */}
+      {pageToast && (
+        <div
+          style={{
+            position: 'fixed',
+            left: '50%',
+            bottom: 100,
+            transform: 'translateX(-50%)',
+            background: pageToast.type === 'error' ? 'rgba(220, 38, 38, 0.92)' : 'rgba(15, 23, 42, 0.92)',
+            color: '#ffffff',
+            padding: '8px 20px',
+            borderRadius: 8,
+            fontSize: 13,
+            zIndex: 99,
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          }}
+        >
+          {pageToast.message}
+        </div>
+      )}
     </div>
   );
 }

@@ -328,7 +328,7 @@ async def _run_knowledge(cfg: Dict[str, Any]) -> Dict[str, Any]:
     try:
         import chromadb  # type: ignore
 
-        client = chromadb.PersistentClient(path=str(_chroma_path()))
+        client = chromadb.PersistentClient(path=str(_chroma_path(cfg)))
         coll = client.get_or_create_collection(cfg.get("collection") or "default")
         if cfg.get("operation") == "upsert":
             coll.add(documents=[cfg.get("text", "")], ids=[str(time.time())])
@@ -340,9 +340,9 @@ async def _run_knowledge(cfg: Dict[str, Any]) -> Dict[str, Any]:
         return {"docs": []}
 
 
-def _chroma_path():
+def _chroma_path(cfg: Dict[str, Any] | None = None):
     from ..core.config import settings
-    return settings.chroma_path
+    return (cfg or {}).get("storage_path") or settings.chroma_path
 
 
 async def _run_sqlite(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -353,7 +353,7 @@ async def _run_sqlite(cfg: Dict[str, Any]) -> Dict[str, Any]:
     table = cfg.get("table")
     if not table:
         return {"rows": []}
-    sql_path = db.path
+    sql_path = cfg.get("db_path") or db.path
     conn = sqlite3.connect(sql_path)
     try:
         if op == "select":
@@ -405,9 +405,10 @@ async def _run_skill(cfg: Dict[str, Any], upstream: Optional[Dict[str, Any]] = N
 
     code = cfg.get("code", "")
     timeout = int(cfg.get("timeout_sec") or 30)
+    working_dir = cfg.get("working_dir", "./data/skills")
     # 把 upstream 包成带 inputs 键的 dict，跟 _run_skill 调用点对齐
     sandbox_inputs = {"inputs": upstream or {}}
-    return await run_user_code(code, timeout=timeout, extra_globals=sandbox_inputs)
+    return await run_user_code(code, timeout=timeout, extra_globals=sandbox_inputs, working_dir=working_dir)
 
 
 async def _run_feishu_bitable_create(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -528,7 +529,7 @@ async def _run_excel_save_records(cfg: Dict[str, Any]) -> Dict[str, Any]:
     import openpyxl
     from pathlib import Path
 
-    filename = cfg.get("filename", "output.xlsx")
+    file_path = cfg.get("file_path", cfg.get("filename", "output.xlsx"))
     sheet_name = cfg.get("sheet_name", "Sheet1")
     records = cfg.get("records", cfg.get("data", []))
     if isinstance(records, str):
@@ -568,7 +569,7 @@ async def _run_excel_save_records(cfg: Dict[str, Any]) -> Dict[str, Any]:
         if ws: ws.append(row)
         count += 1
 
-    path = Path(filename)
+    path = Path(file_path)
     wb.save(str(path))
     return {"file": str(path.absolute()), "rows": count}
 

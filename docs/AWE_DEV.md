@@ -1,11 +1,41 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.29**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.30**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.3.7i - 2026-07-06)
+## 1. 当前进度 (v0.3.8 - 2026-07-06)
+
+### 1.0 今日进展 (2026-07-06 14:30) -- v0.3.8：复制粘贴 + 路径参数 + 自定义确认对话框 (PRD v2.30)
+
+**【本轮】v0.3.8：节点复制粘贴 + Ctrl+C/V + 读写节点路径参数 (PRD v2.30)**
+
+- 🐛 **Bug**: 节点内复制按钮点击无反应（NodeRender 未接收 onDuplicate 回调）
+- ✅ **修复**: 在 App.tsx 添加 `duplicateNode` / `copySelectedNodes` / `pasteNodes` 回调
+- ✅ **新增**: 节点剪贴板状态 (`clipboard`) 支持跨工作流粘贴
+- ✅ **新增**: Ctrl+C 复制选中/框选节点、Ctrl+V 粘贴（不拦截输入框）
+- ✅ **新增**: 画布右键菜单，粘贴 Ctrl+V 选项
+- 📋 **构建**: 257.93 kB / gzip 77.48 kB
+
+**【本轮】v0.3.8b：读写节点路径参数暴露**
+
+- ✅ **节点配置 schema 更新**:
+  - `knowledge` 新增 `storage_path`（ChromaDB 目录）
+  - `sqlite` 新增 `db_path`（数据库文件路径）
+  - `excel_save_records` `filename` → `file_path`（全路径）
+  - `skill` 新增 `working_dir`（脚本工作目录）
+- ✅ **builder.py**: `_chroma_path(cfg)` 优先用 `cfg.storage_path`；`_run_sqlite` 优先用 `cfg.db_path`；`_run_excel_save_records` 用 `file_path`
+- ✅ **sandbox.py**: `run_user_code` 增加 `working_dir` 参数，注入为 `working_dir` 全局变量
+- 📋 **配套代码版本**: frontend v0.3.8 + backend v0.1.1
+
+**【本轮】v0.3.8c：自定义确认对话框（删除工作流 + 关闭程序）**
+
+- ✅ **ConfirmDialog 组件**: 白底 + slate 边框 + fixed 居中 + 无系统提示音 + 中文
+- ✅ **HomePage**: 替换 `confirm()`/`alert()` 为 ConfirmDialog + pageToast
+- ✅ **App.tsx**: 关闭确认对话框 + `__showCloseConfirm` 全局函数
+- ✅ **Python 端**: `confirm_close=False` + `force_close()` + `on_closing` 拦截
+- 📋 **版本号**: PRD v2.29 → v2.30, DEV v0.3.7i → v0.3.8
 
 ### 1.0 今日进展 (2026-07-06 22:30)
 
