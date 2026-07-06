@@ -23,6 +23,7 @@ const COLOR_BAR: Record<string, string> = {
   rose:    '#f43f5e', // rose-500
   slate:   '#475569', // slate-600
   violet:  '#8b5cf6', // violet-500
+  orange:  '#f97316', // orange-500
 };
 
 interface Props {
@@ -181,14 +182,14 @@ function NodePreview({ kind, config, defName }: { kind: string; config: Record<s
           </div>
         </div>
       );
+    case 'intent':
     case 'intent_router':
-    case 'branch':
       return (
         <div>
-          <div style={labelStyle}>条件</div>
-          <code className="awe-badge" style={{ fontSize: 11 }}>
-            {(config.expression as string) || 'True'}
-          </code>
+          <div style={labelStyle}>意图分类</div>
+          <span className="awe-badge" style={{ fontSize: 11 }}>
+            {(config.labels as string[])?.length || 0} 个标签
+          </span>
         </div>
       );
     case 'loop':
@@ -244,6 +245,77 @@ function NodePreview({ kind, config, defName }: { kind: string; config: Record<s
         <div>
           <div style={labelStyle}>改写风格</div>
           <span style={valueStyle}>{(config.style as string) || 'concise'}</span>
+        </div>
+      );
+    // 6.5.5 逻辑与控制流
+    case 'branch':
+      return (
+        <div>
+          <div style={labelStyle}>条件表达式</div>
+          <code className="awe-badge" style={{ fontSize: 11 }}>
+            {(config.condition as string) || 'True'}
+          </code>
+          <div style={{ marginTop: 4, display: 'flex', gap: 6 }}>
+            <span className="awe-badge awe-badge-success" style={{ fontSize: 10 }}>✓ {(config.true_label as string) || '通过'}</span>
+            <span className="awe-badge awe-badge-failed" style={{ fontSize: 10 }}>✗ {(config.false_label as string) || '未通过'}</span>
+          </div>
+        </div>
+      );
+    case 'loop_count':
+      return (
+        <div>
+          <div style={labelStyle}>次数循环</div>
+          <code className="awe-badge" style={{ fontSize: 11 }}>
+            执行 {(config.count as number) || 3} 次
+          </code>
+        </div>
+      );
+    case 'loop_list':
+      return (
+        <div>
+          <div style={labelStyle}>列表循环</div>
+          <div style={{ ...valueStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {(config.list_path as string) || 'data'}
+          </div>
+        </div>
+      );
+    case 'loop_dict':
+      return (
+        <div>
+          <div style={labelStyle}>字典循环</div>
+          <div style={{ ...valueStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {(config.dict_path as string) || 'data'}
+          </div>
+        </div>
+      );
+    case 'loop_condition':
+      return (
+        <div>
+          <div style={labelStyle}>条件循环</div>
+          <code className="awe-badge" style={{ fontSize: 11 }}>
+            {(config.condition as string) || 'True'}
+          </code>
+          <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 6 }}>
+            最大 {(config.max_iterations as number) || 100} 次
+          </span>
+        </div>
+      );
+    case 'parallel':
+      return (
+        <div>
+          <div style={labelStyle}>并行执行</div>
+          <span className="awe-badge" style={{ fontSize: 11 }}>
+            {(config.branch_count as number) || 2} 分支 · {(config.merge_strategy as string) || 'concat'}
+          </span>
+        </div>
+      );
+    case 'async_exec':
+      return (
+        <div>
+          <div style={labelStyle}>异步执行</div>
+          <span className="awe-badge" style={{ fontSize: 11 }}>
+            {(config.fire_and_forget as boolean) ? '即发即忘' : `超时 ${(config.timeout_sec as number) || 60}s`}
+          </span>
         </div>
       );
     default:

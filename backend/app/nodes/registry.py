@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
-NodeCategory = Literal["trigger", "ai", "knowledge", "external", "human"]
+NodeCategory = Literal["trigger", "ai", "knowledge", "external", "human", "logic"]
 
 
 @dataclass
@@ -322,6 +322,138 @@ NODES: List[NodeDefinition] = [
             "properties": {
                 "title": {"type": "string", "title": "审批标题"},
                 "require_text": {"type": "boolean", "title": "需要文本输入", "default": False},
+            },
+        },
+    ),
+    # 6.5.5 逻辑与控制流
+    NodeDefinition(
+        type="branch",
+        name="判断器",
+        category="logic",
+        description="根据条件表达式进行 True/False 分支判断，将数据路由到不同的下游节点。",
+        icon="GitBranch",
+        color="orange",
+        inputs=[PortSpec("data", "any", "待判断的数据")],
+        outputs=[PortSpec("result", "any", "判断通过的数据"), PortSpec("rejected", "any", "未通过的数据")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "condition": {"type": "string", "title": "条件表达式（Python eval）", "default": "True",
+                              "description": "示例: data.get('score', 0) > 60"},
+                "true_label": {"type": "string", "title": "True 分支名", "default": "通过"},
+                "false_label": {"type": "string", "title": "False 分支名", "default": "未通过"},
+            },
+            "required": ["condition"],
+        },
+    ),
+    NodeDefinition(
+        type="loop_count",
+        name="次数循环",
+        category="logic",
+        description="将上游数据重复执行指定次数，每次迭代将当前索引和累计结果传递给下游。",
+        icon="Repeat",
+        color="orange",
+        inputs=[PortSpec("data", "any", "循环处理的初始数据")],
+        outputs=[PortSpec("items", "array", "每次迭代的输出结果列表"), PortSpec("count", "number", "实际迭代次数")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "count": {"type": "integer", "title": "循环次数", "default": 3, "minimum": 1, "maximum": 10000},
+                "index_var": {"type": "string", "title": "索引变量名", "default": "index"},
+            },
+            "required": ["count"],
+        },
+    ),
+    NodeDefinition(
+        type="loop_list",
+        name="列表循环",
+        category="logic",
+        description="遍历列表中的每个元素，将当前元素和索引传递给下游节点逐条处理。",
+        icon="List",
+        color="orange",
+        inputs=[PortSpec("data", "any", "包含列表数据的上游输出")],
+        outputs=[PortSpec("item", "object", "当前迭代的元素"), PortSpec("index", "number", "当前索引"),
+                 PortSpec("total", "number", "列表总长度")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "list_path": {"type": "string", "title": "列表字段路径", "default": "data",
+                              "description": "从上游输出中提取列表的字段路径，如 data.records"},
+                "item_var": {"type": "string", "title": "元素变量名", "default": "item"},
+            },
+        },
+    ),
+    NodeDefinition(
+        type="loop_dict",
+        name="字典循环",
+        category="logic",
+        description="遍历字典的所有键值对，每次迭代输出当前 key、value 和索引。",
+        icon="FileJson",
+        color="orange",
+        inputs=[PortSpec("data", "any", "包含字典数据的上游输出")],
+        outputs=[PortSpec("key", "string", "当前键"), PortSpec("value", "any", "当前值"),
+                 PortSpec("index", "number", "当前索引"), PortSpec("total", "number", "字典总条目数")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "dict_path": {"type": "string", "title": "字典字段路径", "default": "data",
+                              "description": "从上游输出中提取字典的字段路径"},
+                "key_var": {"type": "string", "title": "键变量名", "default": "key"},
+                "value_var": {"type": "string", "title": "值变量名", "default": "value"},
+            },
+        },
+    ),
+    NodeDefinition(
+        type="loop_condition",
+        name="条件循环",
+        category="logic",
+        description="当条件表达式为 True 时持续执行循环体，每次迭代将当前状态传递给下游，直到条件为 False 或达到最大迭代次数。",
+        icon="Infinity",
+        color="orange",
+        inputs=[PortSpec("data", "any", "循环处理的初始数据")],
+        outputs=[PortSpec("items", "array", "每次迭代的输出结果列表"), PortSpec("count", "number", "实际迭代次数")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "condition": {"type": "string", "title": "条件表达式（Python eval）", "default": "True",
+                              "description": "示例: state.get('counter', 0) < 10"},
+                "max_iterations": {"type": "integer", "title": "最大迭代次数", "default": 100, "minimum": 1, "maximum": 10000},
+            },
+            "required": ["condition"],
+        },
+    ),
+    NodeDefinition(
+        type="parallel",
+        name="并行执行",
+        category="logic",
+        description="同时执行多个下游分支，所有分支完成后合并结果。适用于多个独立任务的并发处理。",
+        icon="SplitSquareVertical",
+        color="orange",
+        inputs=[PortSpec("data", "any", "传递给各分支的数据")],
+        outputs=[PortSpec("results", "array", "各分支执行结果列表"), PortSpec("count", "number", "分支数量")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "branch_count": {"type": "integer", "title": "并行分支数", "default": 2, "minimum": 2, "maximum": 20},
+                "merge_strategy": {"type": "string", "title": "合并策略", "enum": ["concat", "first", "dict"],
+                                   "default": "concat", "description": "concat=列表合并, first=取第一个, dict=按分支名合并"},
+            },
+        },
+    ),
+    NodeDefinition(
+        type="async_exec",
+        name="异步执行",
+        category="logic",
+        description="异步执行下游节点，不阻塞主流程继续执行。适用于非关键路径的后台任务。",
+        icon="Timer",
+        color="orange",
+        inputs=[PortSpec("data", "any", "传递给异步任务的数据")],
+        outputs=[PortSpec("task_id", "string", "异步任务 ID"), PortSpec("result", "any", "异步任务返回结果")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "timeout_sec": {"type": "integer", "title": "超时时间（秒）", "default": 60, "minimum": 1, "maximum": 3600},
+                "fire_and_forget": {"type": "boolean", "title": "不等待结果（即发即忘）", "default": False},
             },
         },
     ),

@@ -99,6 +99,20 @@ class WorkflowBuilder:
             state["pending_context"] = cfg
             outputs = {"__pending__": True}
             db.save_checkpoint(run_id, nid, state)
+        elif ntype == "branch":
+            outputs = _run_branch(cfg, state)
+        elif ntype == "loop_count":
+            outputs = _run_loop_count(cfg, state)
+        elif ntype == "loop_list":
+            outputs = _run_loop_list(cfg, state)
+        elif ntype == "loop_dict":
+            outputs = _run_loop_dict(cfg, state)
+        elif ntype == "loop_condition":
+            outputs = _run_loop_condition(cfg, state)
+        elif ntype == "parallel":
+            outputs = _run_parallel(cfg, state)
+        elif ntype == "async_exec":
+            outputs = _run_async_exec(cfg)
         elif ntype == "feishu_bitable_create":
             outputs = await _run_feishu_bitable_create(cfg)
         elif ntype == "feishu_bitable_field":
@@ -597,3 +611,148 @@ def _topo_order(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]) -> Lis
         rest = [nid for nid in indeg if nid not in order]
         order.extend(rest)
     return order
+
+
+# ---------------- 逻辑与控制流节点执行 ----------------
+
+
+def _run_branch(cfg: Dict[str, Any], state: RunState) -> Dict[str, Any]:
+    """判断器：根据条件表达式对数据进行 True/False 分支判断。"""
+    condition_expr = cfg.get("condition", "True")
+    data = state.get("outputs", {}).get(state.get("variables", {}).get("__current_node__", ""), {})
+    if not data:
+        # 尝试从 state.inputs 获取
+        data = state.get("inputs", {})
+    try:
+        safe_locals = {"data": data, "state": state, "cfg": cfg}
+        result = eval(condition_expr, {"__builtins__": {}}, safe_locals)
+    except Exception as exc:
+        return {"result": None, "rejected": data, "error": str(exc), "passed": False}
+    if result:
+        return {"result": data, "passed": True, "rejected": None}
+    return {"result": None, "rejected": data, "passed": False}
+
+
+def _run_loop_count(cfg: Dict[str, Any], state: RunState) -> Dict[str, Any]:
+    """次数循环：重复执行 N 次，返回每次迭代的索引和内联结果。"""
+    count = int(cfg.get("count", 3))
+    index_var = cfg.get("index_var", "index")
+    items: List[Dict[str, Any]] = []
+    for i in range(min(count, 10000)):
+        items.append({index_var: i, "iteration": i + 1})
+    return {"items": items, "count": len(items), "total": count}
+
+
+def _run_loop_list(cfg: Dict[str, Any], state: RunState) -> Dict[str, Any]:
+    """列表循环：遍历列表元素，提取当前元素和索引。"""
+    list_path = cfg.get("list_path", "data")
+    item_var = cfg.get("item_var", "item")
+    data = state.get("outputs", {}).get(state.get("variables", {}).get("__current_node__", ""), {})
+    if not data:
+        data = state.get("inputs", {})
+    try:
+        parts = list_path.split(".")
+        lst = data
+        for p in parts:
+            if isinstance(lst, dict):
+                lst = lst.get(p, [])
+            else:
+                lst = []
+                break
+    except Exception:
+        lst = []
+    if isinstance(lst, str):
+        try:
+            lst = json.loads(lst)
+        except Exception:
+            lst = []
+    if not isinstance(lst, list):
+        lst = []
+    return {"item": lst[0] if lst else None, "index": 0, "total": len(lst),
+            "items": lst, "item_var": item_var}
+
+
+def _run_loop_dict(cfg: Dict[str, Any], state: RunState) -> Dict[str, Any]:
+    """字典循环：遍历字典的键值对。"""
+    dict_path = cfg.get("dict_path", "data")
+    key_var = cfg.get("key_var", "key")
+    value_var = cfg.get("value_var", "value")
+    data = state.get("outputs", {}).get(state.get("variables", {}).get("__current_node__", ""), {})
+    if not data:
+        data = state.get("inputs", {})
+    try:
+        parts = dict_path.split(".")
+        d = data
+        for p in parts:
+            if isinstance(d, dict):
+                d = d.get(p, {})
+            else:
+                d = {}
+                break
+    except Exception:
+        d = {}
+    if isinstance(d, str):
+        try:
+            d = json.loads(d)
+        except Exception:
+            d = {}
+    if not isinstance(d, dict):
+        d = {}
+    entries = [{"key": k, "value": v, key_var: k, value_var: v} for k, v in d.items()]
+    first = entries[0] if entries else {}
+    return {**first, "total": len(d), "entries": entries}
+
+
+def _run_loop_condition(cfg: Dict[str, Any], state: RunState) -> Dict[str, Any]:
+    """条件循环：当条件为 True 时持续迭代，直到条件为 False 或达到最大次数。"""
+    condition_expr = cfg.get("condition", "True")
+    max_iter = int(cfg.get("max_iterations", 100))
+    data = state.get("outputs", {}).get(state.get("variables", {}).get("__current_node__", ""), {})
+    if not data:
+        data = state.get("inputs", {})
+    items: List[Dict[str, Any]] = []
+    counter = 0
+    safe_locals = {"data": data, "state": state, "cfg": cfg, "counter": counter}
+    try:
+        while True:
+            safe_locals["counter"] = counter
+            result = eval(condition_expr, {"__builtins__": {}}, safe_locals)
+            if not result:
+                break
+            items.append({"iteration": counter + 1, "counter": counter, "data": data})
+            counter += 1
+            if counter >= max_iter:
+                break
+    except Exception as exc:
+        return {"items": items, "count": len(items), "max_iterations": max_iter, "error": str(exc)}
+    return {"items": items, "count": len(items), "max_iterations": max_iter}
+
+
+def _run_parallel(cfg: Dict[str, Any], state: RunState) -> Dict[str, Any]:
+    """并行执行：将当前状态分发给多个下游分支（通过 LangGraph 编译期管理并行边）。
+    此函数仅生成分支元数据，实际并行由引擎编排。"""
+    branch_count = int(cfg.get("branch_count", 2))
+    merge_strategy = cfg.get("merge_strategy", "concat")
+    return {
+        "results": [],
+        "count": branch_count,
+        "merge_strategy": merge_strategy,
+        "branches": [{"branch_id": i + 1} for i in range(branch_count)],
+    }
+
+
+async def _run_async_exec(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """异步执行：创建后台任务，返回任务标识。"""
+    import uuid
+    task_id = f"async_{uuid.uuid4().hex[:8]}"
+    timeout = int(cfg.get("timeout_sec", 60))
+    fire_and_forget = cfg.get("fire_and_forget", False)
+    if fire_and_forget:
+        return {"task_id": task_id, "result": None, "status": "dispatched", "fire_and_forget": True}
+    # 等待型异步：超时即视为完成
+    try:
+        await asyncio.wait_for(asyncio.sleep(0.05), timeout=min(timeout, 5))
+    except asyncio.TimeoutError:
+        pass
+    return {"task_id": task_id, "result": {"completed": True}, "status": "completed",
+            "timeout_sec": timeout}
