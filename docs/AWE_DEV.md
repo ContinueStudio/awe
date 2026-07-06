@@ -37,6 +37,20 @@
 - ✅ **Python 端**: `confirm_close=False` + `force_close()` + `on_closing` 拦截
 - 📋 **版本号**: PRD v2.29 → v2.30, DEV v0.3.7i → v0.3.8
 
+### 1.0 今日进展 (2026-07-06 15:45) -- v0.3.8 patch 2
+
+- 🐛 **Bug 1**: 节点内删除按钮点击无反应（Canvas 未传递 onDelete）
+  - 修复: Canvas.tsx 添加 `onDeleteNode` prop 传递给 NodeRender
+- 🐛 **Bug 2**: 复制按钮立即创建节点，不符合预期
+  - 修复: `duplicateNode` 只存入剪贴板，提示 "Ctrl+V 粘贴"
+- 🐛 **Bug 3**: 填了 file_path 但运行提示缺少必填字段
+  - 根因: handleRun 只在 workflow 无 ID 时才保存，修改后未保存就运行
+  - 修复: `handleRun` / `handleRunSingleNode` / `handleRunSelectedNodes` 都先 `handleSave()`
+- ✅ **新增**: 运行失败不再 alert，改为自动弹出左侧运行日志面板
+- ✅ **新增**: 错误节点高亮红色边框（从错误信息解析节点 ID 或从 run logs 提取）
+- 📋 **构建**: 258.63 kB / gzip 77.79 kB
+- GitHub: 92fec85
+
 ### 1.0 今日进展 (2026-07-06 22:30)
 
 **【本轮】v0.3.7i：WebView2 拖动用 pywebview DRAG_REGION_SELECTOR (PRD v2.29)**
