@@ -152,18 +152,6 @@ def main() -> int:
 
         window.expose(force_close)
 
-        # 拦截系统关闭按钮：通知前端显示自定义确认对话框（无系统提示音）
-        def on_closing():
-            try:
-                window.evaluate_js(
-                    'window.__showCloseConfirm && window.__showCloseConfirm()'
-                )
-            except Exception:
-                pass
-            return False  # 阻止默认关闭，由前端确认后调用 force_close
-
-        window.events.closing += on_closing
-
         webview.start()
     finally:
         kill_proc(frontend)

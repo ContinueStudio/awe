@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作流编辑器 - AWE</title>
+    <style id="theme-vars">
+/* AWE Design System — Brand CSS (PRD §9.2 shadcn/ui 白底黑字) */
+:root {
+  /* Background */
+  --bg: #ffffff;
+  --bg-sidebar: #f8fafc;
+  --bg-hover: #f1f5f9;
+  --bg-selected: #e2e8f0;
+  --bg-subtle: #f8fafc;
+  --bg-canvas: #f8fafc;
+  
+  /* Text */
+  --text: #020617;
+  --text-2: #334155;
+  --text-3: #64748b;
+  --text-4: #94a3b8;
+  --text-placeholder: #cbd5e1;
+  
+  /* Border */
+  --border: #e2e8f0;
+  --border-2: #cbd5e1;
+  --border-hover: #cbd5e1;
+  
+  /* Status */
+  --success: #22c55e;
+  --warning: #eab308;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  
+  /* Primary (Brand Blue) */
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-fg: #ffffff;
+  --primary-light: #eff6ff;
+  --primary-ring: rgba(59, 130, 246, 0.25);
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-float: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --shadow-toolbar: 0 4px 12px rgb(15 23 42 / 0.06);
+  --shadow-panel: 0 12px 24px -6px rgb(15 23 42 / 0.10), 0 4px 8px -2px rgb(15 23 42 / 0.04);
+  
+  /* Node Colors */
+  --node-emerald: #10b981;
+  --node-blue: #3b82f6;
+  --node-amber: #f59e0b;
+  --node-sky: #0ea5e9;
+  --node-rose: #f43f5e;
+  --node-slate: #475569;
+  --node-violet: #8b5cf6;
+  --node-orange: #f97316;
+  
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+}
+
+/* Typography */
+.font-brand {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+.font-mono {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <style type="text/tailwindcss">
+    @theme inline {
+      --color-background: var(--bg, #ffffff);
+      --color-foreground: var(--text, #020617);
+      --color-primary: var(--primary, #3b82f6);
+      --color-primary-foreground: var(--primary-fg, #ffffff);
+      --color-muted: var(--bg-hover, #f1f5f9);
+      --color-muted-foreground: var(--text-3, #64748b);
+      --color-border: var(--border, #e2e8f0);
+      --color-card: var(--bg, #ffffff);
+      --color-card-foreground: var(--text, #020617);
+      --color-accent: var(--bg-hover, #f1f5f9);
+      --color-accent-foreground: var(--text, #020617);
+      --color-destructive: var(--danger, #ef4444);
+      --color-destructive-foreground: var(--primary-fg, #ffffff);
+      --color-sidebar: var(--bg-sidebar, #f8fafc);
+      --color-sidebar-foreground: var(--text, #020617);
+    }
+    </style>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  
+  @layer base {
+    body { background: var(--node-background); color: var(--node-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body>
+  <!-- ====== Editor Header (44px) ====== -->
+  <header style="height: 44px; background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; position: relative; z-index: 10;">
+    <!-- Left group -->
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <!-- Back arrow -->
+      <button class="header-btn" title="返回">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5"/>
+          <path d="M12 19l-7-7 7-7"/>
+        </svg>
+      </button>
+
+      <div class="header-sep"></div>
+
+      <!-- Blue logo square -->
+      <div style="width: 22px; height: 22px; background: #3b82f6; border-radius: 5px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <span style="color: #ffffff; font-size: 12px; font-weight: 800; line-height: 1;">A</span>
+      </div>
+
+      <!-- Brand text -->
+      <span style="font-size: 13px; font-weight: 700; color: #3b82f6; white-space: nowrap;">AWE</span>
+
+      <div class="header-sep"></div>
+
+      <!-- Title input -->
+      <input class="title-input" type="text" value="未命名工作流" spellcheck="false" />
+
+      <!-- Version badge -->
+      <span class="version-badge">v0.3.6</span>
+    </div>
+
+    <!-- Right group -->
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <!-- Undo -->
+      <button class="header-btn" title="撤销">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7v6h6"/>
+          <path d="M3 13a9 9 0 1 0 2.6-6.4L3 7"/>
+        </svg>
+      </button>
+      <!-- Redo -->
+      <button class="header-btn" title="重做">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 7v6h-6"/>
+          <path d="M21 13a9 9 0 1 1-2.6-6.4L21 7"/>
+        </svg>
+      </button>
+
+      <div class="header-sep"></div>
+
+      <!-- Version history button -->
+      <button class="history-btn" title="版本历史">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span>版本历史</span>
+      </button>
+
+      <!-- Publish button -->
+      <button class="publish-btn" title="发版">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
+          <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+          <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
+          <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+        </svg>
+        <span>发版</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ====== Canvas Area ====== -->
+  <main class="canvas-area" style="flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+    <!-- Empty state -->
+    <div style="text-align: center; pointer-events: none; user-select: none;">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px;">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <path d="M12 8v8"/>
+        <path d="M8 12h8"/>
+      </svg>
+      <p style="font-size: 14px; color: #94a3b8;">拖拽节点到画布开始编排</p>
+    </div>
+  </main>
+
+  <!-- ====== Bottom Toolbar (centered) ====== -->
+  <div style="position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 20;">
+    <!-- Left toolbar group -->
+    <div class="toolbar-group">
+      <!-- Add node button (circular, dark) -->
+      <button class="tb-btn" style="background: #4B5563; color: #ffffff; width: 32px; height: 32px;" title="添加节点">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5v14"/>
+          <path d="M5 12h14"/>
+        </svg>
+      </button>
+
+      <!-- Document with + -->
+      <button class="tb-btn" title="新建文档">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <path d="M12 12v6"/>
+          <path d="M9 15h6"/>
+        </svg>
+      </button>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Mouse pointer -->
+      <button class="tb-btn" title="选择工具">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
+          <path d="M13 13l6 6"/>
+        </svg>
+      </button>
+
+      <!-- Hand (active) -->
+      <button class="tb-btn active" title="抓手工具">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v1"/>
+          <path d="M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v6"/>
+          <path d="M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8"/>
+          <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+        </svg>
+      </button>
+
+      <!-- Grid layout -->
+      <button class="tb-btn" title="网格布局">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/>
+          <rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+        </svg>
+      </button>
+
+      <!-- More (three dots) -->
+      <button class="tb-btn" title="更多">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="5" r="1" fill="#374151"/>
+          <circle cx="12" cy="12" r="1" fill="#374151"/>
+          <circle cx="12" cy="19" r="1" fill="#374151"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Right toolbar group -->
+    <div class="toolbar-group">
+      <!-- Log / document icon -->
+      <button class="tb-btn" title="日志">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="8" y1="13" x2="16" y2="13"/>
+          <line x1="8" y1="17" x2="12" y2="17"/>
+        </svg>
+      </button>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Run button -->
+      <button class="run-btn" title="运行">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+          <polygon points="6,3 20,12 6,21"/>
+        </svg>
+        <span>运行</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ====== Zoom Controls (bottom-left) ====== -->
+  <div class="zoom-group" style="position: fixed; left: 16px; bottom: 16px; z-index: 20; gap: 2px;">
+    <!-- Minus -->
+    <button class="zoom-btn" title="缩小">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14"/>
+      </svg>
+    </button>
+
+    <!-- Zoom percentage -->
+    <span style="font-size: 12px; font-weight: 600; color: #334155; min-width: 56px; text-align: center; user-select: none;">100%</span>
+
+    <!-- Plus -->
+    <button class="zoom-btn" title="放大">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14"/>
+        <path d="M5 12h14"/>
+      </svg>
+    </button>
+
+    <div class="toolbar-divider"></div>
+
+    <!-- Fit to screen -->
+    <button class="zoom-fit-btn" title="适应画布">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 3H5a2 2 0 0 0-2 2v3"/>
+        <path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+        <path d="M3 16v3a2 2 0 0 0 2 2h3"/>
+        <path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+      </svg>
+      <span>适应</span>
+    </button>
+  </div>
+
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Canvas dot grid */
+    .canvas-area {
+      background-color: #f8fafc;
+      background-image: radial-gradient(circle, #e2e8f0 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* Toolbar button base */
+    .tb-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      transition: background-color 0.15s, box-shadow 0.15s;
+      color: #374151;
+    }
+    .tb-btn:hover { background: #f1f5f9; }
+    .tb-btn.active { background: #DBEAFE; color: #2563EB; }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 0 6px;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+      height: 44px;
+    }
+
+    .toolbar-divider {
+      width: 1px;
+      height: 20px;
+      background: #E5E7EB;
+      flex-shrink: 0;
+    }
+
+    .header-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      transition: background-color 0.15s;
+      color: #334155;
+    }
+    .header-btn:hover { background: #f1f5f9; }
+
+    .header-sep {
+      width: 1px;
+      height: 18px;
+      background: #e2e8f0;
+      flex-shrink: 0;
+      margin: 0 6px;
+    }
+
+    .zoom-group {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 0 6px;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+      height: 36px;
+    }
+
+    .zoom-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      transition: background-color 0.15s;
+      color: #334155;
+    }
+    .zoom-btn:hover { background: #f1f5f9; }
+
+    .title-input {
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 13px;
+      font-weight: 600;
+      color: #020617;
+      width: 160px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: background-color 0.15s;
+    }
+    .title-input:focus { background: #f1f5f9; }
+
+    .version-badge {
+      font-size: 10px;
+      color: #94a3b8;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      padding: 1px 6px;
+      line-height: 16px;
+      white-space: nowrap;
+    }
+
+    .run-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      height: 36px;
+      padding: 0 14px;
+      border-radius: 8px;
+      border: none;
+      background: #3b82f6;
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(59, 130, 246, 0.25);
+      transition: background-color 0.15s, box-shadow 0.15s;
+    }
+    .run-btn:hover { background: #2563eb; }
+
+    .history-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+      background: #ffffff;
+      color: #334155;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background-color 0.15s;
+      white-space: nowrap;
+    }
+    .history-btn:hover { background: #f1f5f9; }
+
+    .publish-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      height: 28px;
+      padding: 0 12px;
+      border-radius: 6px;
+      border: none;
+      background: #3b82f6;
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(59, 130, 246, 0.25);
+      transition: background-color 0.15s;
+      margin-left: 4px;
+      white-space: nowrap;
+    }
+    .publish-btn:hover { background: #2563eb; }
+
+    .zoom-fit-btn {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 28px;
+      padding: 0 8px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background-color 0.15s;
+      white-space: nowrap;
+    }
+    .zoom-fit-btn:hover { background: #f1f5f9; }
+  </style>
+</body>
+</html>

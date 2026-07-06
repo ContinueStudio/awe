@@ -196,21 +196,6 @@ def _run_gui(webview, stop_event: threading.Event) -> None:
     window.expose(minimize)
     window.expose(close_window)
 
-    # 拦截系统关闭事件：通知前端显示自定义确认对话框（无系统提示音）
-    try:
-        def on_closing():
-            try:
-                window.evaluate_js(
-                    'window.__showCloseConfirm && window.__showCloseConfirm()'
-                )
-            except Exception:
-                pass
-            return False  # 阻止默认关闭，由前端确认后调用 close_window
-
-        window.events.closing += on_closing
-    except Exception as e:
-        print(f"[AWE] 关闭事件注册失败: {e}", file=sys.stderr)
-
     webview.start()
 
 

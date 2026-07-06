@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作流列表 - AWE</title>
+    <style id="theme-vars">
+/* AWE Design System — Brand CSS (PRD §9.2 shadcn/ui 白底黑字) */
+:root {
+  /* Background */
+  --bg: #ffffff;
+  --bg-sidebar: #f8fafc;
+  --bg-hover: #f1f5f9;
+  --bg-selected: #e2e8f0;
+  --bg-subtle: #f8fafc;
+  --bg-canvas: #f8fafc;
+  
+  /* Text */
+  --text: #020617;
+  --text-2: #334155;
+  --text-3: #64748b;
+  --text-4: #94a3b8;
+  --text-placeholder: #cbd5e1;
+  
+  /* Border */
+  --border: #e2e8f0;
+  --border-2: #cbd5e1;
+  --border-hover: #cbd5e1;
+  
+  /* Status */
+  --success: #22c55e;
+  --warning: #eab308;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  
+  /* Primary (Brand Blue) */
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-fg: #ffffff;
+  --primary-light: #eff6ff;
+  --primary-ring: rgba(59, 130, 246, 0.25);
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-float: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --shadow-toolbar: 0 4px 12px rgb(15 23 42 / 0.06);
+  --shadow-panel: 0 12px 24px -6px rgb(15 23 42 / 0.10), 0 4px 8px -2px rgb(15 23 42 / 0.04);
+  
+  /* Node Colors */
+  --node-emerald: #10b981;
+  --node-blue: #3b82f6;
+  --node-amber: #f59e0b;
+  --node-sky: #0ea5e9;
+  --node-rose: #f43f5e;
+  --node-slate: #475569;
+  --node-violet: #8b5cf6;
+  --node-orange: #f97316;
+  
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+}
+
+/* Typography */
+.font-brand {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+.font-mono {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <style type="text/tailwindcss">
+    @theme inline {
+      --color-background: var(--bg, #ffffff);
+      --color-foreground: var(--text, #020617);
+      --color-primary: var(--primary, #3b82f6);
+      --color-primary-foreground: var(--primary-fg, #ffffff);
+      --color-muted: var(--bg-hover, #f1f5f9);
+      --color-muted-foreground: var(--text-3, #64748b);
+      --color-border: var(--border, #e2e8f0);
+      --color-card: var(--bg, #ffffff);
+      --color-card-foreground: var(--text, #020617);
+      --color-accent: var(--bg-hover, #f1f5f9);
+      --color-accent-foreground: var(--text, #020617);
+      --color-destructive: var(--danger, #ef4444);
+      --color-destructive-foreground: var(--primary-fg, #ffffff);
+      --color-sidebar: var(--bg-sidebar, #f8fafc);
+      --color-sidebar-foreground: var(--text, #020617);
+    }
+    </style>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  
+  @layer base {
+    body { background: var(--node-background); color: var(--node-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body>
+
+  <!-- Titlebar -->
+  <div class="titlebar">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span style="font-weight:700;font-size:13px;color:var(--text);">AWE</span>
+      <span style="color:var(--text-4);font-size:12px;">·</span>
+      <span style="font-size:12px;color:var(--text-3);">智能体工作流引擎</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:2px;">
+      <button class="titlebar-btn" title="最小化">
+        <svg width="10" height="1" viewBox="0 0 10 1" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="0" y1="0.5" x2="10" y2="0.5"/></svg>
+      </button>
+      <button class="titlebar-btn close" title="关闭">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- App Layout -->
+  <div class="app-layout">
+
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+      <!-- Logo -->
+      <div class="sidebar-logo">
+        <div class="sidebar-logo-icon">A</div>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);line-height:1.2;">AWE</div>
+          <div style="font-size:10px;color:var(--text-3);line-height:1.2;">智能体工作流引擎</div>
+        </div>
+      </div>
+      <!-- Health -->
+      <div class="sidebar-health">
+        <span class="dot"></span>
+        <span style="font-size:10px;color:#16a34a;font-weight:500;">后端 v1.0</span>
+      </div>
+      <!-- Separator -->
+      <div class="sidebar-separator"></div>
+      <!-- Nav -->
+      <div class="sidebar-nav-label">导航</div>
+      <nav class="sidebar-nav">
+        <!-- 工作流列表 (active) -->
+        <a class="nav-item active" href="#">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          <span>工作流列表</span>
+        </a>
+        <!-- 节点管理 -->
+        <a class="nav-item" href="#">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M3 12h18"/><circle cx="12" cy="12" r="3"/></svg>
+          <span>节点管理</span>
+        </a>
+        <!-- 执行历史 -->
+        <a class="nav-item" href="#">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>执行历史</span>
+        </a>
+        <!-- 设置 -->
+        <a class="nav-item" href="#">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>设置</span>
+        </a>
+      </nav>
+      <!-- Footer -->
+      <div class="sidebar-footer">v0.3.6</div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Header -->
+      <div class="content-header">
+        <div class="header-left">
+          <h1>工作流列表</h1>
+          <span class="subtitle">共 10 个工作流</span>
+        </div>
+        <div class="header-right">
+          <!-- Search -->
+          <div class="search-input">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" placeholder="搜索工作流..." />
+          </div>
+          <!-- New Workflow -->
+          <button class="btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>新建工作流</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Table Area -->
+      <div class="table-area">
+        <div class="table-container">
+          <!-- Header -->
+          <div class="table-header">
+            <span>名称</span>
+            <span>状态</span>
+            <span>更新时间</span>
+            <span style="text-align:right;">操作</span>
+          </div>
+
+          <!-- Row 1: Edge 浏览器自动化 -->
+          <div class="table-row" data-row="1">
+            <div class="row-name">
+              <span class="name-text">Edge 浏览器自动化</span>
+            </div>
+            <div>
+              <span class="status-badge status-stopped"><span class="dot"></span>已停止</span>
+            </div>
+            <div class="row-time">38 分钟前</div>
+            <div class="row-actions">
+              <!-- Run count -->
+              <button class="action-btn" title="运行次数">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              </button>
+              <!-- Play -->
+              <button class="action-btn" title="运行">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </button>
+              <!-- Share -->
+              <button class="action-btn" title="分享">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              </button>
+              <!-- More -->
+              <button class="action-btn" title="更多" onclick="toggleMenu(event, 'menu-1')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Row 2: 未命名工作流 -->
+          <div class="table-row" data-row="2">
+            <div class="row-name">
+              <span class="name-text">未命名工作流</span>
+            </div>
+            <div>
+              <span class="status-badge status-draft"><span class="dot"></span>草稿</span>
+            </div>
+            <div class="row-time">—</div>
+            <div class="row-actions">
+              <button class="action-btn" title="运行">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </button>
+              <button class="action-btn" title="分享">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              </button>
+              <button class="action-btn" title="更多">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Row 3: 未命名工作流 -->
+          <div class="table-row" data-row="3">
+            <div class="row-name">
+              <span class="name-text">未命名工作流</span>
+            </div>
+            <div>
+              <span class="status-badge status-draft"><span class="dot"></span>草稿</span>
+            </div>
+            <div class="row-time">—</div>
+            <div class="row-actions">
+              <button class="action-btn" title="运行">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </button>
+              <button class="action-btn" title="分享">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              </button>
+              <button class="action-btn" title="更多">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Row 4: 未命名工作流 -->
+          <div class="table-row" data-row="4">
+            <div class="row-name">
+              <span class="name-text">未命名工作流</span>
+            </div>
+            <div>
+              <span class="status-badge status-draft"><span class="dot"></span>草稿</span>
+            </div>
+            <div class="row-time">—</div>
+            <div class="row-actions">
+              <button class="action-btn" title="运行">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </button>
+              <button class="action-btn" title="分享">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              </button>
+              <button class="action-btn" title="更多">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Row 5: 未命名工作流 -->
+          <div class="table-row" data-row="5">
+            <div class="row-name">
+              <span class="name-text">未命名工作流</span>
+            </div>
+            <div>
+              <span class="status-badge status-draft"><span class="dot"></span>草稿</span>
+            </div>
+            <div class="row-time">—</div>
+            <div class="row-actions">
+              <button class="action-btn" title="运行">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </button>
+              <button class="action-btn" title="分享">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              </button>
+              <button class="action-btn" title="更多">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Row 6: 未命名工作流 -->
+          <div class="table-row" data-row="6">
+            <div class="row-name">
+              <span class="name-text">未命名工作流</span>
+            </div>
+            <div>
+              <span class="status-badge status-draft"><span class="dot"></span>草稿</span>
+            </div>
+            <div class="row-time">—</div>
+            <div class="row-actions">
+              <button class="action-btn" title="运行">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </button>
+              <button class="action-btn" title="分享">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              </button>
+              <button class="action-btn" title="更多">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Row 7: 未命名工作流 -->
+          <div class="table-row" data-row="7">
+            <div class="row-name">
+              <span class="name-text">未命名工作流</span>
+            </div>
+            <div>
+              <span class="status-badge status-draft"><span class="dot"></span>草稿</span>
+            </div>
+            <div class="row-time">—</div>
+            <div class="row-actions">
+              <button class="action-btn" title="运行">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </button>
+              <button class="action-btn" title="分享">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              </button>
+              <button class="action-btn" title="更多">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Row 8: AWE 自检 - Skill Hello World -->
+          <div class="table-row" data-row="8">
+            <div class="row-name">
+              <span class="name-text">AWE 自检 - Skill Hello World</span>
+            </div>
+            <div>
+              <span class="status-badge status-stopped"><span class="dot"></span>已停止</span>
+            </div>
+            <div class="row-time">21 小时前</div>
+            <div class="row-actions">
+              <!-- Run count -->
+              <button class="action-btn" title="运行次数">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              </button>
+              <!-- Play -->
+              <button class="action-btn" title="运行">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </button>
+              <!-- Share -->
+              <button class="action-btn" title="分享">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              </button>
+              <!-- More -->
+              <button class="action-btn" title="更多">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination">
+          <span>第 1-8 条 / 共 10 条</span>
+          <div class="pagination-controls">
+            <button class="page-btn" disabled>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button class="page-btn active">1</button>
+            <button class="page-btn">2</button>
+            <button class="page-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Context Menu (shown for row 1) -->
+  <div class="context-menu" id="menu-1" style="top: 220px; left: 860px;">
+    <!-- 重命名 -->
+    <button class="context-item">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <span>重命名</span>
+    </button>
+    <!-- 复制 -->
+    <button class="context-item">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      <span>复制</span>
+    </button>
+    <!-- 导出 JSON -->
+    <button class="context-item">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span>导出 JSON</span>
+    </button>
+    <!-- 复制分享链接 -->
+    <button class="context-item">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      <span>复制分享链接</span>
+    </button>
+    <!-- Separator -->
+    <div class="context-separator"></div>
+    <!-- 删除 -->
+    <button class="context-item danger">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      <span>删除</span>
+    </button>
+  </div>
+
+  <script>
+    // Context menu toggle
+    function toggleMenu(event, menuId) {
+      event.stopPropagation();
+      const menu = document.getElementById(menuId);
+      if (menu) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        menu.style.top = (rect.bottom + 4) + 'px';
+        menu.style.left = Math.min(rect.right - 160, window.innerWidth - 170) + 'px';
+      }
+    }
+    // Close menus on outside click
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.context-menu').forEach(m => {
+        m.style.display = m.style.display === 'none' ? '' : '';
+      });
+    });
+  </script>
+
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      height: 100vh;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* Titlebar */
+    .titlebar {
+      height: 32px;
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      -webkit-app-region: drag;
+      user-select: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+    }
+    .titlebar-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: transparent;
+      color: var(--text-3);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      -webkit-app-region: no-drag;
+    }
+    .titlebar-btn:hover { background: var(--bg-hover); }
+    .titlebar-btn.close:hover { background: var(--danger); color: white; }
+
+    /* Layout */
+    .app-layout {
+      display: flex;
+      height: 100vh;
+      padding-top: 32px;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 240px;
+      min-width: 240px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 32px);
+      overflow-y: auto;
+    }
+    .sidebar-logo {
+      padding: 20px 16px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sidebar-logo-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--primary);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .sidebar-health {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 0 0 58px;
+    }
+    .sidebar-health .dot {
+      width: 6px;
+      height: 6px;
+      background: #16a34a;
+      border-radius: 50%;
+    }
+    .sidebar-separator {
+      border-bottom: 1px solid var(--border);
+      margin: 12px 16px 0;
+    }
+    .sidebar-nav-label {
+      font-size: 10px;
+      color: var(--text-4);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 16px 16px 8px;
+      font-weight: 500;
+    }
+    .sidebar-nav { padding: 0 8px; }
+    .nav-item {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-size: 13px;
+      color: var(--text-3);
+      border: 1px solid transparent;
+      text-decoration: none;
+    }
+    .nav-item:hover { background: var(--bg-hover); }
+    .nav-item.active {
+      background: var(--bg);
+      border-color: var(--border);
+      color: var(--text);
+      font-weight: 600;
+    }
+    .nav-item svg { flex-shrink: 0; }
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 12px 16px;
+      font-size: 10px;
+      color: var(--text-4);
+    }
+
+    /* Main content */
+    .main-content {
+      flex: 1;
+      background: var(--bg);
+      height: calc(100vh - 32px);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header bar */
+    .content-header {
+      height: 56px;
+      min-height: 56px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-left { display: flex; flex-direction: column; gap: 2px; }
+    .header-left h1 { font-size: 16px; font-weight: 600; color: var(--text); line-height: 1.3; }
+    .header-left .subtitle { font-size: 11px; color: var(--text-3); }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+
+    /* Search input */
+    .search-input {
+      width: 240px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      transition: all 0.15s ease;
+    }
+    .search-input:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-ring); }
+    .search-input input {
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 13px;
+      color: var(--text);
+      width: 100%;
+    }
+    .search-input input::placeholder { color: var(--text-placeholder); }
+    .search-input svg { color: var(--text-4); flex-shrink: 0; }
+
+    /* Primary button */
+    .btn-primary {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 14px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-primary svg { flex-shrink: 0; }
+
+    /* Table area */
+    .table-area {
+      flex: 1;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .table-container {
+      width: 100%;
+      max-width: 1100px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    /* Table header */
+    .table-header {
+      height: 36px;
+      min-height: 36px;
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border);
+      display: grid;
+      align-items: center;
+      padding: 0 20px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-3);
+      grid-template-columns: minmax(280px, 1fr) 120px 180px 200px;
+    }
+
+    /* Table row */
+    .table-row {
+      height: 48px;
+      min-height: 48px;
+      border-bottom: 1px solid #f1f5f9;
+      display: grid;
+      align-items: center;
+      padding: 0 20px;
+      font-size: 13px;
+      color: var(--text);
+      grid-template-columns: minmax(280px, 1fr) 120px 180px 200px;
+      transition: background 0.1s ease;
+      cursor: default;
+      position: relative;
+    }
+    .table-row:last-child { border-bottom: none; }
+    .table-row:hover { background: var(--bg-subtle); }
+
+    /* Row name cell */
+    .row-name {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow: hidden;
+    }
+    .row-name .name-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    /* Status badge */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 1px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .status-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-stopped { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .status-stopped .dot { background: #22c55e; }
+    .status-draft { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+    .status-draft .dot { background: #94a3b8; }
+
+    /* Time cell */
+    .row-time { color: var(--text-3); font-size: 12px; }
+
+    /* Action buttons */
+    .row-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      justify-content: flex-end;
+    }
+    .action-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      color: var(--text-3);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .action-btn:hover { background: var(--bg-hover); border-color: var(--border-hover); color: var(--text-2); }
+    .action-btn svg { pointer-events: none; }
+
+    /* Pagination */
+    .pagination {
+      width: 100%;
+      max-width: 1100px;
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-3);
+      padding-bottom: 24px;
+    }
+    .pagination-controls { display: flex; align-items: center; gap: 4px; }
+    .page-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      color: var(--text-3);
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.15s ease;
+    }
+    .page-btn:hover { background: var(--bg-hover); }
+    .page-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Context menu */
+    .context-menu {
+      position: fixed;
+      width: 160px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-float);
+      padding: 4px;
+      z-index: 200;
+    }
+    .context-item {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      color: var(--text-2);
+      cursor: pointer;
+      transition: background 0.1s ease;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+    .context-item:hover { background: var(--bg-hover); }
+    .context-item svg { flex-shrink: 0; color: var(--text-3); }
+    .context-item.danger { color: var(--danger); }
+    .context-item.danger svg { color: var(--danger); }
+    .context-separator {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 8px;
+    }
+  </style>
+</body>
+</html>

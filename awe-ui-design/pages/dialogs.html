@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>弹窗与浮层 - AWE</title>
+    <style id="theme-vars">
+/* AWE Design System — Brand CSS (PRD §9.2 shadcn/ui 白底黑字) */
+:root {
+  /* Background */
+  --bg: #ffffff;
+  --bg-sidebar: #f8fafc;
+  --bg-hover: #f1f5f9;
+  --bg-selected: #e2e8f0;
+  --bg-subtle: #f8fafc;
+  --bg-canvas: #f8fafc;
+  
+  /* Text */
+  --text: #020617;
+  --text-2: #334155;
+  --text-3: #64748b;
+  --text-4: #94a3b8;
+  --text-placeholder: #cbd5e1;
+  
+  /* Border */
+  --border: #e2e8f0;
+  --border-2: #cbd5e1;
+  --border-hover: #cbd5e1;
+  
+  /* Status */
+  --success: #22c55e;
+  --warning: #eab308;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  
+  /* Primary (Brand Blue) */
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-fg: #ffffff;
+  --primary-light: #eff6ff;
+  --primary-ring: rgba(59, 130, 246, 0.25);
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-float: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --shadow-toolbar: 0 4px 12px rgb(15 23 42 / 0.06);
+  --shadow-panel: 0 12px 24px -6px rgb(15 23 42 / 0.10), 0 4px 8px -2px rgb(15 23 42 / 0.04);
+  
+  /* Node Colors */
+  --node-emerald: #10b981;
+  --node-blue: #3b82f6;
+  --node-amber: #f59e0b;
+  --node-sky: #0ea5e9;
+  --node-rose: #f43f5e;
+  --node-slate: #475569;
+  --node-violet: #8b5cf6;
+  --node-orange: #f97316;
+  
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+}
+
+/* Typography */
+.font-brand {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+.font-mono {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <style type="text/tailwindcss">
+    @theme inline {
+      --color-background: var(--bg, #ffffff);
+      --color-foreground: var(--text, #020617);
+      --color-primary: var(--primary, #3b82f6);
+      --color-primary-foreground: var(--primary-fg, #ffffff);
+      --color-muted: var(--bg-hover, #f1f5f9);
+      --color-muted-foreground: var(--text-3, #64748b);
+      --color-border: var(--border, #e2e8f0);
+      --color-card: var(--bg, #ffffff);
+      --color-card-foreground: var(--text, #020617);
+      --color-accent: var(--bg-hover, #f1f5f9);
+      --color-accent-foreground: var(--text, #020617);
+      --color-destructive: var(--danger, #ef4444);
+      --color-destructive-foreground: var(--primary-fg, #ffffff);
+      --color-sidebar: var(--bg-sidebar, #f8fafc);
+      --color-sidebar-foreground: var(--text, #020617);
+    }
+    </style>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  
+  @layer base {
+    body { background: var(--node-background); color: var(--node-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased font-brand">
+    <main style="padding: 32px;">
+
+      <!-- Page Title -->
+      <div style="text-align: center; margin-bottom: 36px;">
+        <h1 style="font-size: 20px; font-weight: 700; color: #020617; margin: 0;">弹窗与浮层组件</h1>
+        <p style="font-size: 13px; color: #64748b; margin-top: 6px;">Dialogs, Menus, Drawers &amp; Toast</p>
+      </div>
+
+      <!-- 2x2 Grid -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; justify-items: center; max-width: 1320px; margin: 0 auto;">
+
+        <!-- ========== Component 1: Confirm Dialog (top-left) ========== -->
+        <div>
+          <div class="window-label">确认对话框 / Confirm Dialog</div>
+          <div class="mock-window">
+            <!-- Simulated app content behind -->
+            <div style="padding: 20px;">
+              <div style="height: 14px; width: 60%; background: #f1f5f9; border-radius: 4px; margin-bottom: 10px;"></div>
+              <div style="height: 10px; width: 90%; background: #f1f5f9; border-radius: 4px; margin-bottom: 6px;"></div>
+              <div style="height: 10px; width: 75%; background: #f1f5f9; border-radius: 4px; margin-bottom: 6px;"></div>
+              <div style="height: 10px; width: 85%; background: #f1f5f9; border-radius: 4px;"></div>
+            </div>
+            <!-- Overlay -->
+            <div class="overlay-bg">
+              <div class="dialog-box" style="width: 400px;">
+                <h3 style="font-size: 15px; font-weight: 600; color: #020617; margin: 0 0 8px 0;">关闭程序</h3>
+                <p style="font-size: 13px; color: #475569; margin: 0; line-height: 1.5;">确定要退出 AWE 吗？未保存的更改可能会丢失。</p>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                  <button class="btn-secondary">取消</button>
+                  <button class="btn-primary">退出</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== Component 2: Rename Dialog (top-right) ========== -->
+        <div>
+          <div class="window-label">重命名对话框 / Rename Dialog</div>
+          <div class="mock-window">
+            <!-- Simulated app content behind -->
+            <div style="padding: 20px;">
+              <div style="height: 14px; width: 50%; background: #f1f5f9; border-radius: 4px; margin-bottom: 10px;"></div>
+              <div style="height: 10px; width: 80%; background: #f1f5f9; border-radius: 4px; margin-bottom: 6px;"></div>
+              <div style="height: 10px; width: 65%; background: #f1f5f9; border-radius: 4px;"></div>
+            </div>
+            <!-- Overlay -->
+            <div class="overlay-bg">
+              <div class="dialog-box" style="width: 380px; padding: 20px;">
+                <h3 style="font-size: 14px; font-weight: 600; color: #020617; margin: 0 0 14px 0;">重命名工作流</h3>
+                <input class="dialog-input" type="text" value="Edge 浏览器自动化" />
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;">
+                  <button class="btn-secondary">取消</button>
+                  <button class="btn-primary">确定</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== Component 3: Context Menu (bottom-left) ========== -->
+        <div>
+          <div class="window-label">右键菜单 / Context Menu</div>
+          <div class="mock-window">
+            <!-- Simulated app content -->
+            <div style="padding: 20px; position: relative; height: 100%; box-sizing: border-box;">
+              <div style="height: 14px; width: 55%; background: #f1f5f9; border-radius: 4px; margin-bottom: 10px;"></div>
+              <div style="height: 10px; width: 80%; background: #f1f5f9; border-radius: 4px; margin-bottom: 6px;"></div>
+              <div style="height: 10px; width: 70%; background: #f1f5f9; border-radius: 4px; margin-bottom: 16px;"></div>
+
+              <!-- Simulated workflow card that was right-clicked -->
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; width: 220px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M9 9h6"/><path d="M9 13h4"/></svg>
+                  <span style="font-size: 13px; font-weight: 500; color: #020617;">Edge 浏览器自动化</span>
+                </div>
+                <div style="font-size: 11px; color: #94a3b8;">上次运行: 2024-07-06 17:30</div>
+              </div>
+
+              <!-- Context Menu -->
+              <div class="context-menu" style="position: absolute; top: 130px; left: 180px;">
+                <div class="context-menu-item">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                  重命名
+                </div>
+                <div class="context-menu-item">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                  复制
+                </div>
+                <div class="context-menu-item">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                  导出 JSON
+                </div>
+                <div class="context-menu-item">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>
+                  复制分享链接
+                </div>
+                <div class="context-menu-separator"></div>
+                <div class="context-menu-item" style="color: #dc2626;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                  删除
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== Component 4: Run History Drawer (bottom-right) ========== -->
+        <div>
+          <div class="window-label">运行历史抽屉 / Run History Drawer</div>
+          <div class="mock-window" style="display: flex; overflow: hidden;">
+            <!-- Drawer Panel -->
+            <div class="drawer-panel">
+              <!-- Header -->
+              <div style="padding: 12px 14px; border-bottom: 1px solid #e2e8f0; flex-shrink: 0;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span style="font-size: 14px; font-weight: 600; color: #020617;">运行历史</span>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="cursor: pointer;"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 4px; padding-left: 20px;">Edge 浏览器自动化</div>
+              </div>
+
+              <!-- Run List -->
+              <div style="flex: 1; overflow-y: auto; padding: 8px;">
+                <!-- Item 1 - Selected -->
+                <div class="run-item run-item-selected">
+                  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <span style="font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; color: #020617;">abc12345</span>
+                    <span class="badge badge-success">succeeded</span>
+                  </div>
+                  <div style="font-size: 11px; color: #94a3b8; padding-left: 20px;">2024-07-06 17:30 &middot; 2.3s</div>
+                </div>
+
+                <!-- Item 2 - Running -->
+                <div class="run-item run-item-default">
+                  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                    <span style="font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; color: #020617;">def67890</span>
+                    <span class="badge badge-warning">running</span>
+                  </div>
+                  <div style="font-size: 11px; color: #94a3b8; padding-left: 20px;">2024-07-06 17:28 &middot; &hellip;</div>
+                </div>
+
+                <!-- Item 3 - Failed -->
+                <div class="run-item run-item-default">
+                  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+                    <span style="font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; color: #020617;">ghi13579</span>
+                    <span class="badge badge-danger">failed</span>
+                  </div>
+                  <div style="font-size: 11px; color: #94a3b8; padding-left: 20px;">2024-07-06 17:25 &middot; 1.1s</div>
+                  <div style="font-size: 11px; color: #ef4444; padding-left: 20px; margin-top: 2px;">节点 n2: timeout</div>
+                </div>
+              </div>
+
+              <!-- Detail Section -->
+              <div style="border-top: 1px solid #e2e8f0; flex-shrink: 0; max-height: 180px; overflow-y: auto;">
+                <div style="padding: 10px 14px;">
+                  <!-- Collapsible: Logs -->
+                  <div class="collapsible-header">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                    Logs (3)
+                  </div>
+                  <div style="margin-bottom: 8px;">
+                    <div class="log-entry">
+                      <span>17:30:01.2</span>
+                      <span>n1</span>
+                      <span>start</span>
+                      <span>0.8s</span>
+                      <span><span class="status-dot" style="background: #22c55e;"></span></span>
+                    </div>
+                    <div class="log-entry">
+                      <span>17:30:01.8</span>
+                      <span>n2</span>
+                      <span>click</span>
+                      <span>0.5s</span>
+                      <span><span class="status-dot" style="background: #22c55e;"></span></span>
+                    </div>
+                    <div class="log-entry">
+                      <span>17:30:02.3</span>
+                      <span>n3</span>
+                      <span>input</span>
+                      <span>1.0s</span>
+                      <span><span class="status-dot" style="background: #22c55e;"></span></span>
+                    </div>
+                  </div>
+
+                  <!-- Collapsible: Outputs -->
+                  <div class="collapsible-header">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                    Outputs
+                  </div>
+                  <pre style="margin: 0; font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 11px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;">{
+  "status": "succeeded",
+  "duration": 2.3,
+  "steps": 3
+}</pre>
+                </div>
+              </div>
+            </div>
+
+            <!-- Simulated canvas area to the right of drawer -->
+            <div style="flex: 1; background: #f8fafc; display: flex; align-items: center; justify-content: center;">
+              <div style="font-size: 12px; color: #cbd5e1;">工作流画布区域</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end grid -->
+
+      <!-- ========== Toast Notification ========== -->
+      <div class="toast">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        已保存
+      </div>
+
+    </main>
+    <script>lucide.createIcons();</script>
+
+    <style>
+      /* Page-level overrides for showcase */
+      body { background: #f1f5f9 !important; }
+
+      .mock-window {
+        width: 600px;
+        height: 400px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+        position: relative;
+      }
+
+      .overlay-bg {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .dialog-box {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
+        padding: 24px;
+      }
+
+      .context-menu {
+        width: 160px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        box-shadow: var(--shadow-float);
+        padding: 4px;
+      }
+
+      .context-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        font-size: 13px;
+        color: #020617;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 150ms;
+      }
+
+      .context-menu-item:hover {
+        background: #f1f5f9;
+      }
+
+      .context-menu-separator {
+        height: 1px;
+        background: #e2e8f0;
+        margin: 4px 0;
+      }
+
+      .btn-secondary {
+        height: 34px;
+        padding: 0 14px;
+        border-radius: 6px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        color: #475569;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background 150ms, border-color 150ms;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .btn-secondary:hover {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+      }
+
+      .btn-primary {
+        height: 34px;
+        padding: 0 14px;
+        border-radius: 6px;
+        background: #3b82f6;
+        border: 1px solid #3b82f6;
+        color: #ffffff;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background 150ms;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .btn-primary:hover {
+        background: #2563eb;
+      }
+
+      .dialog-input {
+        width: 100%;
+        height: 32px;
+        padding: 0 10px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 13px;
+        color: #020617;
+        outline: none;
+        transition: border-color 150ms;
+        box-sizing: border-box;
+      }
+
+      .dialog-input:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+      }
+
+      .drawer-panel {
+        width: 320px;
+        height: 100%;
+        background: #ffffff;
+        border-right: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .run-item {
+        padding: 8px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 150ms;
+      }
+
+      .run-item:hover {
+        background: #f8fafc;
+      }
+
+      .run-item-selected {
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+      }
+
+      .run-item-default {
+        border: 1px solid transparent;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+      }
+
+      .badge-success { background: #dcfce7; color: #16a34a; }
+      .badge-warning { background: #fef3c7; color: #ca8a04; }
+      .badge-danger { background: #fee2e2; color: #dc2626; }
+
+      .collapsible-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: #334155;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .collapsible-header:hover {
+        color: #020617;
+      }
+
+      .log-entry {
+        display: grid;
+        grid-template-columns: 80px 60px 40px 40px 8px;
+        gap: 8px;
+        font-size: 11px;
+        color: #64748b;
+        padding: 3px 0;
+        font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      }
+
+      .status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 32px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(15, 23, 42, 0.92);
+        color: #ffffff;
+        padding: 8px 20px;
+        border-radius: 8px;
+        font-size: 13px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* Label below each mock window */
+      .window-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        margin-bottom: 10px;
+        text-align: center;
+        letter-spacing: 0.02em;
+      }
+    </style>
+</body>
+</html>

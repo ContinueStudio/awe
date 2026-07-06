@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>节点管理 - AWE</title>
+    <style id="theme-vars">
+/* AWE Design System — Brand CSS (PRD §9.2 shadcn/ui 白底黑字) */
+:root {
+  /* Background */
+  --bg: #ffffff;
+  --bg-sidebar: #f8fafc;
+  --bg-hover: #f1f5f9;
+  --bg-selected: #e2e8f0;
+  --bg-subtle: #f8fafc;
+  --bg-canvas: #f8fafc;
+  
+  /* Text */
+  --text: #020617;
+  --text-2: #334155;
+  --text-3: #64748b;
+  --text-4: #94a3b8;
+  --text-placeholder: #cbd5e1;
+  
+  /* Border */
+  --border: #e2e8f0;
+  --border-2: #cbd5e1;
+  --border-hover: #cbd5e1;
+  
+  /* Status */
+  --success: #22c55e;
+  --warning: #eab308;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  
+  /* Primary (Brand Blue) */
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-fg: #ffffff;
+  --primary-light: #eff6ff;
+  --primary-ring: rgba(59, 130, 246, 0.25);
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-float: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --shadow-toolbar: 0 4px 12px rgb(15 23 42 / 0.06);
+  --shadow-panel: 0 12px 24px -6px rgb(15 23 42 / 0.10), 0 4px 8px -2px rgb(15 23 42 / 0.04);
+  
+  /* Node Colors */
+  --node-emerald: #10b981;
+  --node-blue: #3b82f6;
+  --node-amber: #f59e0b;
+  --node-sky: #0ea5e9;
+  --node-rose: #f43f5e;
+  --node-slate: #475569;
+  --node-violet: #8b5cf6;
+  --node-orange: #f97316;
+  
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+}
+
+/* Typography */
+.font-brand {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+.font-mono {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <style type="text/tailwindcss">
+    @theme inline {
+      --color-background: var(--bg, #ffffff);
+      --color-foreground: var(--text, #020617);
+      --color-primary: var(--primary, #3b82f6);
+      --color-primary-foreground: var(--primary-fg, #ffffff);
+      --color-muted: var(--bg-hover, #f1f5f9);
+      --color-muted-foreground: var(--text-3, #64748b);
+      --color-border: var(--border, #e2e8f0);
+      --color-card: var(--bg, #ffffff);
+      --color-card-foreground: var(--text, #020617);
+      --color-accent: var(--bg-hover, #f1f5f9);
+      --color-accent-foreground: var(--text, #020617);
+      --color-destructive: var(--danger, #ef4444);
+      --color-destructive-foreground: var(--primary-fg, #ffffff);
+      --color-sidebar: var(--bg-sidebar, #f8fafc);
+      --color-sidebar-foreground: var(--text, #020617);
+    }
+    </style>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  
+  @layer base {
+    body { background: var(--node-background); color: var(--node-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body>
+  <div class="shell">
+    <!-- Titlebar -->
+    <div class="titlebar">
+      <div class="titlebar-dots">
+        <div class="titlebar-dot"></div>
+        <div class="titlebar-dot"></div>
+        <div class="titlebar-dot"></div>
+      </div>
+    </div>
+
+    <div class="body-wrap">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-logo">
+          <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+            <rect width="26" height="26" rx="6" fill="#3b82f6"/>
+            <path d="M7 13h12M13 7v12" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+          <span class="sidebar-logo-text">AWE</span>
+        </div>
+
+        <nav class="sidebar-nav">
+          <!-- 工作台 -->
+          <a class="nav-item" href="home.html">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="2" width="6" height="6" rx="1.5"/>
+              <rect x="10" y="2" width="6" height="6" rx="1.5"/>
+              <rect x="2" y="10" width="6" height="6" rx="1.5"/>
+              <rect x="10" y="10" width="6" height="6" rx="1.5"/>
+            </svg>
+            <span>工作台</span>
+          </a>
+
+          <!-- 编辑器 -->
+          <a class="nav-item" href="editor.html">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 14l1.5-5L13 3.5l3 3L8.5 13.5z"/>
+              <path d="M11 5.5l3 3"/>
+            </svg>
+            <span>编辑器</span>
+          </a>
+
+          <!-- 节点管理 (active) -->
+          <a class="nav-item active" href="nodes.html">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="5" cy="5" r="2"/>
+              <circle cx="13" cy="5" r="2"/>
+              <circle cx="9" cy="13" r="2"/>
+              <line x1="6.8" y1="6.2" x2="7.5" y2="11.5"/>
+              <line x1="11.2" y1="6.2" x2="10.5" y2="11.5"/>
+            </svg>
+            <span>节点管理</span>
+          </a>
+
+          <!-- 历史记录 -->
+          <a class="nav-item" href="history.html">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="9" cy="9" r="7"/>
+              <path d="M9 5v4l3 2"/>
+            </svg>
+            <span>历史记录</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-footer-avatar">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="8" cy="6" r="2.5"/>
+              <path d="M3 14c0-2.5 2.2-4.5 5-4.5s5 2 5 4.5"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main -->
+      <div class="main">
+        <!-- Page Header -->
+        <div class="page-header">
+          <div class="page-header-left">
+            <span class="page-header-title">节点管理</span>
+            <span class="page-header-count">共 16 个节点</span>
+          </div>
+          <div class="page-header-right">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="7" cy="7" r="4.5"/>
+              <line x1="10.2" y1="10.2" x2="14" y2="14"/>
+            </svg>
+            <input class="search-input" type="text" placeholder="搜索节点..." />
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+          <div class="content-inner">
+
+            <!-- Category 1: 触发 / 边界 -->
+            <div class="category">
+              <div class="category-header">
+                <span class="category-title">触发 / 边界</span>
+                <span class="category-count">3</span>
+              </div>
+              <div class="node-table">
+                <div class="node-row">
+                  <div class="node-icon" style="background:#10b981;">W</div>
+                  <div class="node-name">Webhook 触发器</div>
+                  <div class="node-desc">接收 HTTP 请求触发工作流执行</div>
+                  <div class="node-type">webhook</div>
+                </div>
+                <div class="node-row">
+                  <div class="node-icon" style="background:#3b82f6;">H</div>
+                  <div class="node-name">HTTP 请求</div>
+                  <div class="node-desc">发送 HTTP 请求到外部 API</div>
+                  <div class="node-type">http_request</div>
+                </div>
+                <div class="node-row">
+                  <div class="node-icon" style="background:#0ea5e9;">S</div>
+                  <div class="node-name">Skill 脚本</div>
+                  <div class="node-desc">执行 Python 自定义脚本</div>
+                  <div class="node-type">skill</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Category 2: AI 与语义路由 -->
+            <div class="category">
+              <div class="category-header">
+                <span class="category-title">AI 与语义路由</span>
+                <span class="category-count">4</span>
+              </div>
+              <div class="node-table">
+                <div class="node-row">
+                  <div class="node-icon" style="background:#f59e0b;">L</div>
+                  <div class="node-name">LLM 调用</div>
+                  <div class="node-desc">调用大语言模型进行文本生成</div>
+                  <div class="node-type">llm</div>
+                </div>
+                <div class="node-row">
+                  <div class="node-icon" style="background:#8b5cf6;">I</div>
+                  <div class="node-name">意图路由</div>
+                  <div class="node-desc">根据用户意图分发到不同分支</div>
+                  <div class="node-type">intent_router</div>
+                </div>
+                <div class="node-row">
+                  <div class="node-icon" style="background:#3b82f6;">R</div>
+                  <div class="node-name">文本改写</div>
+                  <div class="node-desc">按指定风格改写输入文本</div>
+                  <div class="node-type">rewrite</div>
+                </div>
+                <div class="node-row">
+                  <div class="node-icon" style="background:#10b981;">K</div>
+                  <div class="node-name">知识检索</div>
+                  <div class="node-desc">从向量知识库中检索相关文档</div>
+                  <div class="node-type">knowledge_search</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Category 3: 知识 / 数据 -->
+            <div class="category">
+              <div class="category-header">
+                <span class="category-title">知识 / 数据</span>
+                <span class="category-count">2</span>
+              </div>
+              <div class="node-table">
+                <div class="node-row">
+                  <div class="node-icon" style="background:#475569;">Q</div>
+                  <div class="node-name">SQL 查询</div>
+                  <div class="node-desc">执行 SQL 查询获取结构化数据</div>
+                  <div class="node-type">sql_query</div>
+                </div>
+                <div class="node-row">
+                  <div class="node-icon" style="background:#3b82f6;">M</div>
+                  <div class="node-name">MCP 客户端</div>
+                  <div class="node-desc">连接 MCP 服务调用外部工具</div>
+                  <div class="node-type">mcp_client</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Category 4: 外部生态 -->
+            <div class="category">
+              <div class="category-header">
+                <span class="category-title">外部生态</span>
+                <span class="category-count">1</span>
+              </div>
+              <div class="node-table">
+                <div class="node-row">
+                  <div class="node-icon" style="background:#0ea5e9;">B</div>
+                  <div class="node-name">分支条件</div>
+                  <div class="node-desc">根据条件表达式选择执行路径</div>
+                  <div class="node-type">branch</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Category 5: 人类管理 -->
+            <div class="category">
+              <div class="category-header">
+                <span class="category-title">人类管理</span>
+                <span class="category-count">1</span>
+              </div>
+              <div class="node-table">
+                <div class="node-row">
+                  <div class="node-icon" style="background:#f43f5e;">R</div>
+                  <div class="node-name">人工审核</div>
+                  <div class="node-desc">暂停工作流等待人工审批</div>
+                  <div class="node-type">human_review</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: var(--bg-canvas);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---------- Layout Shell ---------- */
+    .shell {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* Titlebar */
+    .titlebar {
+      height: 32px;
+      min-height: 32px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      -webkit-app-region: drag;
+    }
+
+    .titlebar-dots {
+      display: flex;
+      gap: 8px;
+    }
+    .titlebar-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+
+    .body-wrap {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 240px;
+      min-width: 240px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 0;
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 20px 20px 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+    .sidebar-logo svg { flex-shrink: 0; }
+    .sidebar-logo-text {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 0 8px;
+      flex: 1;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text-3);
+      text-decoration: none;
+      transition: background 120ms, color 120ms;
+      cursor: pointer;
+    }
+    .nav-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-2);
+    }
+    .nav-item.active {
+      background: var(--bg-selected);
+      color: var(--text);
+      font-weight: 500;
+    }
+    .nav-item svg { flex-shrink: 0; opacity: 0.7; }
+    .nav-item.active svg { opacity: 1; }
+
+    .sidebar-footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      margin-top: auto;
+    }
+    .sidebar-footer-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Main content */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Page header */
+    .page-header {
+      height: 56px;
+      min-height: 56px;
+      background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+    }
+    .page-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .page-header-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .page-header-count {
+      font-size: 11px;
+      color: var(--text-3);
+    }
+    .page-header-right {
+      position: relative;
+    }
+    .search-input {
+      width: 280px;
+      height: 32px;
+      padding: 0 12px 0 34px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 150ms, box-shadow 150ms;
+      font-family: inherit;
+    }
+    .search-input::placeholder { color: var(--text-placeholder); }
+    .search-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-ring);
+    }
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-4);
+      pointer-events: none;
+    }
+
+    /* Content scroll */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+    }
+    .content-inner {
+      width: 100%;
+      max-width: 1100px;
+    }
+
+    /* Category group */
+    .category {
+      margin-bottom: 16px;
+    }
+    .category:last-child { margin-bottom: 0; }
+    .category-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      padding: 0 4px;
+    }
+    .category-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .category-count {
+      font-size: 11px;
+      color: var(--text-4);
+    }
+
+    /* Table container */
+    .node-table {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    /* Node row */
+    .node-row {
+      display: grid;
+      grid-template-columns: 40px 240px 1fr 160px;
+      align-items: center;
+      height: 48px;
+      padding: 0 16px;
+      border-bottom: 1px solid #f1f5f9;
+      transition: background 120ms;
+      cursor: default;
+    }
+    .node-row:last-child { border-bottom: none; }
+    .node-row:hover { background: var(--bg-hover); }
+
+    /* Node icon */
+    .node-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #ffffff;
+      flex-shrink: 0;
+    }
+
+    /* Node name */
+    .node-name {
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    /* Node desc */
+    .node-desc {
+      font-size: 12px;
+      color: var(--text-3);
+    }
+
+    /* Node type */
+    .node-type {
+      font-size: 11px;
+      color: var(--text-4);
+      font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      text-align: right;
+    }
+  </style>
+</body>
+</html>
