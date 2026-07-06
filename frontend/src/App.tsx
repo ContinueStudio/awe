@@ -94,8 +94,10 @@ export default function App() {
 
   // v0.3.x: 节点剪贴板（支持跨工作流粘贴）
   const [clipboard, setClipboard] = useState<CanvasNode[] | null>(null);
+  // v0.3.x: 运行出错的节点 ID 集合（高亮红色）
+  const [errorNodeIds, setErrorNodeIds] = useState<Set<string>>(new Set());
 
-  // 复制选中节点
+  // 复制选中节点（Ctrl+C）
   const copySelectedNodes = useCallback(() => {
     if (view.kind !== 'editor') return;
     const selIds = selectedNodeIds.size > 0 ? selectedNodeIds : (selectedNodeId ? new Set([selectedNodeId]) : new Set());
@@ -105,7 +107,7 @@ export default function App() {
     setToast(`已复制 ${copied.length} 个节点`);
   }, [view, graph, selectedNodeIds, selectedNodeId]);
 
-  // 粘贴剪贴板节点
+  // 粘贴剪贴板节点（Ctrl+V / 右键粘贴）
   const pasteNodes = useCallback(() => {
     if (view.kind !== 'editor' || !clipboard || clipboard.length === 0) return;
     const offsetX = 40 * (graph.nodes.length + 1);
@@ -126,30 +128,30 @@ export default function App() {
     setToast(`已粘贴 ${newNodes.length} 个节点`);
   }, [view, clipboard, graph.nodes.length]);
 
-  // 复制单个节点（画布复制按钮）
+  // 复制单个节点到剪贴板（点击节点内复制按钮，只复制不创建）
   const duplicateNode = useCallback((nodeId: string) => {
     const node = graph.nodes.find((n) => n.id === nodeId);
     if (!node) return;
-    const newId = `n_${Date.now().toString(36)}`;
-    const offsetX = 50;
-    const offsetY = 50;
-    const newNode: CanvasNode = {
-      ...node,
-      id: newId,
-      config: { ...(node.config || {}) },
-      meta: {
-        ...(node.meta || {}),
-        x: (node.meta?.x ?? 200) + offsetX,
-        y: (node.meta?.y ?? 120) + offsetY,
-      },
-    };
-    // 同时存入剪贴板（支持跨工作流粘贴）
     setClipboard([{ ...node, config: { ...(node.config || {}) } }]);
-    setGraph((prev) => ({ ...prev, nodes: [...prev.nodes, newNode] }));
-    setSelectedNodeIdsState(new Set([newId]));
-    setSelectedNodeId(newId);
-    setConfigOpen(false);
+    setToast('已复制到剪贴板，Ctrl+V 粘贴');
   }, [graph]);
+
+  // 删除单个节点
+  const deleteNode = useCallback((nodeId: string) => {
+    setGraph((prev) => ({
+      nodes: prev.nodes.filter((n) => n.id !== nodeId),
+      edges: prev.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+    }));
+    if (selectedNodeId === nodeId) {
+      setSelectedNodeId(null);
+      setConfigOpen(false);
+    }
+    setErrorNodeIds((prev) => {
+      const next = new Set(prev);
+      next.delete(nodeId);
+      return next;
+    });
+  }, [selectedNodeId]);
 
   // v2.37：frameless 模式下整栏拖动 handler，主标题栏和编辑器顶栏共用
   const onWindowDragMouseDown = useWindowDrag();
@@ -320,17 +322,30 @@ export default function App() {
 
   const handleRun = useCallback(async () => {
     if (view.kind !== 'editor') return;
-    if (!view.wf.id) {
-      await handleSave();
-    }
+    // 每次运行前自动保存，确保最新配置写入数据库
+    await handleSave();
     const targetWfId = view.wf.id;
+    if (!targetWfId) return;
+    setErrorNodeIds(new Set());
     setIsRunning(true);
+    setShowRunHistory(true); // 每次运行都弹出左侧日志
     try {
-      await api.runWorkflow(targetWfId, {});
-      setToast('已触发运行，查看 Home 页日志');
+      const result = await api.runWorkflow(targetWfId, {});
+      setToast(`运行完成: ${result.status}`);
+      // 高亮失败的节点
+      if (result.logs) {
+        const failedIds = new Set(result.logs.filter((l) => !l.ok).map((l) => l.node));
+        setErrorNodeIds(failedIds);
+      }
     } catch (e) {
       console.error('run failed', e);
-      alert('运行失败：' + (e as Error).message);
+      const errMsg = (e as Error).message || '';
+      // 尝试从错误信息中提取节点 ID（如 "节点 n2:"）
+      const nodeMatch = errMsg.match(/节点\s+([a-zA-Z0-9_]+)/);
+      if (nodeMatch) {
+        setErrorNodeIds(new Set([nodeMatch[1]]));
+      }
+      setToast('运行失败，请查看日志');
     } finally {
       setIsRunning(false);
     }
@@ -339,16 +354,23 @@ export default function App() {
   // v0.3.11：单节点测试运行
   const handleRunSingleNode = useCallback(async () => {
     if (view.kind !== 'editor' || !selectedNodeId) return;
-    if (!view.wf.id) { await handleSave(); }
+    await handleSave();
     const targetWfId = view.wf.id;
+    if (!targetWfId) return;
+    setErrorNodeIds(new Set());
     setIsRunning(true);
+    setShowRunHistory(true);
     try {
-      await api.runSingleNode(targetWfId, selectedNodeId, {});
-      setToast(`节点 ${selectedNodeId.slice(0, 6)} 试运行完成，查看日志`);
-      setShowRunHistory(true);
+      const result = await api.runSingleNode(targetWfId, selectedNodeId, {});
+      setToast(`节点 ${selectedNodeId.slice(0, 6)} 试运行完成`);
+      if (result.logs) {
+        const failedIds = new Set(result.logs.filter((l) => !l.ok).map((l) => l.node));
+        setErrorNodeIds(failedIds);
+      }
     } catch (e) {
       console.error('single run failed', e);
-      alert('试运行失败：' + (e as Error).message);
+      setErrorNodeIds(new Set([selectedNodeId]));
+      setToast('试运行失败，请查看日志');
     } finally {
       setIsRunning(false);
     }
@@ -357,16 +379,27 @@ export default function App() {
   // v0.3.11：框选运行
   const handleRunSelectedNodes = useCallback(async (nodeIds: string[]) => {
     if (view.kind !== 'editor') return;
-    if (!view.wf.id) { await handleSave(); }
+    await handleSave();
     const targetWfId = view.wf.id;
+    if (!targetWfId) return;
+    setErrorNodeIds(new Set());
     setIsRunning(true);
+    setShowRunHistory(true);
     try {
-      await api.runSelectedNodes(targetWfId, nodeIds, {});
-      setToast(`框选 ${nodeIds.length} 个节点运行完成，查看日志`);
-      setShowRunHistory(true);
+      const result = await api.runSelectedNodes(targetWfId, nodeIds, {});
+      setToast(`框选 ${nodeIds.length} 个节点运行完成`);
+      if (result.logs) {
+        const failedIds = new Set(result.logs.filter((l) => !l.ok).map((l) => l.node));
+        setErrorNodeIds(failedIds);
+      }
     } catch (e) {
       console.error('selected run failed', e);
-      alert('框选运行失败：' + (e as Error).message);
+      const errMsg = (e as Error).message || '';
+      const nodeMatch = errMsg.match(/节点\s+([a-zA-Z0-9_]+)/);
+      if (nodeMatch) {
+        setErrorNodeIds(new Set([nodeMatch[1]]));
+      }
+      setToast('框选运行失败，请查看日志');
     } finally {
       setIsRunning(false);
     }
@@ -603,10 +636,12 @@ export default function App() {
               onChange={setGraph}
               onWorkflowId={() => {}}
               onWorkflowName={setCurrentName}
-              onSelectNode={(id) => { setSelectedNodeId(id); setConfigOpen(!!id); }}
+              onSelectNode={(id) => { setSelectedNodeId(id); setConfigOpen(!!id); if (id) setErrorNodeIds((prev) => { const next = new Set(prev); next.delete(id); return next; }); }}
               onSave={() => {}}
               onDuplicateNode={duplicateNode}
+              onDeleteNode={deleteNode}
               onPaste={() => pasteNodes()}
+              errorNodeIds={errorNodeIds}
               view={canvasView}
               onViewChange={setCanvasView}
               selectMode={selectMode}

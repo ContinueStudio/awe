@@ -35,8 +35,12 @@ interface Props {
   onSelectedIdsChange?: (ids: Set<string>) => void;
   /** v0.3.x: 节点复制回调 */
   onDuplicateNode?: (nodeId: string) => void;
+  /** v0.3.x: 节点删除回调 */
+  onDeleteNode?: (nodeId: string) => void;
   /** v0.3.x: 粘贴回调 */
   onPaste?: () => void;
+  /** v0.3.x: 运行出错的节点 ID 集合 */
+  errorNodeIds?: Set<string>;
 }
 
 const DEFAULT_VIEW = { x: 0, y: 0, scale: 1 };
@@ -56,7 +60,9 @@ export function Canvas({
   selectMode = false,
   onSelectedIdsChange,
   onDuplicateNode,
+  onDeleteNode,
   onPaste,
+  errorNodeIds,
 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -477,10 +483,12 @@ export function Canvas({
                       def={def}
                       selected={selectedIds.has(n.id)}
                       onDuplicate={() => onDuplicateNode?.(n.id)}
+                      onDelete={() => onDeleteNode?.(n.id)}
                       onPointerDown={() => {}}
                       onStartEdge={(e) => startEdge(e, n.id)}
                       onCompleteEdge={(e) => completeEdge(e, n.id)}
                       onMeasured={(m) => measureNode(n.id, m)}
+                      error={errorNodeIds?.has(n.id) || false}
                     />
                   </div>
                 </foreignObject>

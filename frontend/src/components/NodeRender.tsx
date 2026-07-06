@@ -35,9 +35,10 @@ interface Props {
   onStartEdge?: (e: React.MouseEvent) => void;
   onCompleteEdge?: (e: React.MouseEvent) => void;
   onMeasured?: (h: number) => void;
+  error?: boolean;
 }
 
-export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, onDelete, onStartEdge, onCompleteEdge, onMeasured }: Props) {
+export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, onDelete, onStartEdge, onCompleteEdge, onMeasured, error }: Props) {
   const color = COLOR_BAR[def.color] || COLOR_BAR.slate;
   const cfg = (node.config || {}) as Record<string, any>;
   const ref = useRef<HTMLDivElement | null>(null);
@@ -71,6 +72,11 @@ export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, on
           // v0.3.10 修复：把顶部类型色通过 CSS 变量 --node-color 注入，
           // .node-card 用 border-top 渲染类型色，背景实底白避免重叠穿透。
           '--node-color': color,
+          // v0.3.x: 运行出错的节点高亮红色
+          ...(error ? {
+            boxShadow: '0 0 0 2px #ef4444, 0 4px 12px rgba(239, 68, 68, 0.2)',
+            borderColor: '#ef4444',
+          } : {}),
         } as React.CSSProperties
       }
       data-node-id={node.id}
