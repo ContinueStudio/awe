@@ -250,19 +250,20 @@ def main() -> None:
     # ---- 打开浏览器 / 桌面窗口 ----
     if args.window:
         print(f"\n[4/4] 启动桌面窗口 → 加载 {DIST_DIR / 'index.html'}")
-        # 复用 find_python() 选出的解释器，确保能 import pywebview
+        # v2.30：launch_window 自管后端生命周期，单进程模式
+        # 所以 start.py 不要先起后端，否则 8765 端口被占
+        backend.terminate()  # 释放端口
+        backend.wait(timeout=3)
+        backend = None
         window_py = find_python() or sys.executable
         try:
             rc = subprocess.call(
                 [window_py, str(ROOT / "desktop" / "launch_window.py")],
                 cwd=str(ROOT),
             )
-            if rc != 0:
-                backend.terminate()
-                sys.exit(rc)
+            sys.exit(rc)
         except FileNotFoundError as e:
             print(f"  ✗ 桌面窗口启动失败: {e}")
-            backend.terminate()
             sys.exit(1)
     else:
         print(f"\n[4/4] 打开浏览器 → {url}")

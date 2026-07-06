@@ -52,7 +52,10 @@ class WorkflowBuilder:
             logger.warning("模板渲染失败: %s", exc)
 
         # 不同节点类型的执行
-        if ntype == "webhook":
+        if ntype == "start":
+            # 开始节点：透传输入数据给下游
+            outputs = {"input": state.get("inputs", {})}
+        elif ntype == "webhook":
             outputs = {"body": state.get("inputs", {})}
         elif ntype == "end":
             # 优先使用 config.message（已渲染过模板）作为响应；
@@ -96,6 +99,14 @@ class WorkflowBuilder:
             state["pending_context"] = cfg
             outputs = {"__pending__": True}
             db.save_checkpoint(run_id, nid, state)
+        elif ntype == "feishu_bitable_create":
+            outputs = await _run_feishu_bitable_create(cfg)
+        elif ntype == "feishu_bitable_field":
+            outputs = await _run_feishu_bitable_field(cfg)
+        elif ntype == "feishu_bitable_record":
+            outputs = await _run_feishu_bitable_record(cfg)
+        elif ntype == "feishu_bitable_list_records":
+            outputs = await _run_feishu_bitable_list_records(cfg)
         else:
             outputs = {"__unknown__": ntype}
 
@@ -164,7 +175,8 @@ def _make_node_fn(
             state.setdefault("outputs", {})
             state["outputs"].update(out)
             state.setdefault("logs", []).append(
-                {"node": nid, "type": node["type"], "ok": True, "ms": dt, "ts": time.time()}
+                {"node": nid, "type": node["type"], "ok": True, "ms": dt, "ts": time.time(),
+                 "desc": (registry.get(node["type"]) or None) and (registry.get(node["type"]).description)}
             )
         except Exception as exc:  # noqa: BLE001
             logger.exception("节点 %s 执行失败", nid)
@@ -175,6 +187,7 @@ def _make_node_fn(
                     "ok": False,
                     "error": str(exc),
                     "trace": traceback.format_exc(limit=4),
+                    "desc": (registry.get(node["type"]) or None) and (registry.get(node["type"]).description),
                     "ts": time.time(),
                 }
             )
@@ -379,6 +392,118 @@ async def _run_skill(cfg: Dict[str, Any], upstream: Optional[Dict[str, Any]] = N
     # 把 upstream 包成带 inputs 键的 dict，跟 _run_skill 调用点对齐
     sandbox_inputs = {"inputs": upstream or {}}
     return await run_user_code(code, timeout=timeout, extra_globals=sandbox_inputs)
+
+
+async def _run_feishu_bitable_create(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """创建飞书多维表格。"""
+    from .feishu_client import create_bitable
+
+    app_id = cfg.get("app_id", "")
+    app_secret = cfg.get("app_secret", "")
+    name = cfg.get("name", "AWE 工作流")
+    folder_token = cfg.get("folder_token") or None
+    if not app_id or not app_secret:
+        return {"error": "缺少 app_id 或 app_secret"}
+    try:
+        result = await create_bitable(app_id, app_secret, name, folder_token)
+        return {
+            "app_token": result["app_token"],
+            "table_id": result["table_id"],
+            "url": result.get("url", ""),
+        }
+    except Exception as exc:
+        return {"error": f"创建多维表格失败: {exc}"}
+
+
+async def _run_feishu_bitable_field(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """在飞书多维表格中新增字段。"""
+    from .feishu_client import create_field
+
+    app_id = cfg.get("app_id", "")
+    app_secret = cfg.get("app_secret", "")
+    app_token = cfg.get("app_token", "")
+    table_id = cfg.get("table_id", "")
+    fields_config = cfg.get("fields", [])
+    if not app_id or not app_secret:
+        return {"error": "缺少 app_id 或 app_secret"}
+    if not app_token:
+        return {"error": "缺少 app_token"}
+    if not table_id:
+        return {"error": "缺少 table_id"}
+    if not fields_config:
+        return {"error": "未配置字段列表"}
+    results = []
+    errors = []
+    for idx, fdef in enumerate(fields_config):
+        try:
+            field_data = await create_field(
+                app_id=app_id,
+                app_secret=app_secret,
+                app_token=app_token,
+                table_id=table_id,
+                field_name=fdef.get("field_name", f"字段{idx}"),
+                field_type=int(fdef.get("type", 1)),
+            )
+            results.append(field_data)
+        except Exception as exc:
+            errors.append(f"字段 {fdef.get('field_name', idx)}: {exc}")
+    if errors:
+        return {"fields": results, "errors": errors}
+    return {"fields": results}
+
+
+async def _run_feishu_bitable_record(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """在飞书多维表格中新增记录。"""
+    from .feishu_client import create_record
+
+    app_id = cfg.get("app_id", "")
+    app_secret = cfg.get("app_secret", "")
+    app_token = cfg.get("app_token", "")
+    table_id = cfg.get("table_id", "")
+    fields = cfg.get("fields", {})
+    if not app_id or not app_secret:
+        return {"error": "缺少 app_id 或 app_secret"}
+    if not app_token:
+        return {"error": "缺少 app_token"}
+    if not table_id:
+        return {"error": "缺少 table_id"}
+    if not fields:
+        return {"error": "未配置字段值"}
+    try:
+        record_data = await create_record(
+            app_id=app_id,
+            app_secret=app_secret,
+            app_token=app_token,
+            table_id=table_id,
+            fields=fields,
+        )
+        return {"record": record_data}
+    except Exception as exc:
+        return {"error": f"新增记录失败: {exc}"}
+
+
+async def _run_feishu_bitable_list_records(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """读取飞书多维表格所有记录。"""
+    from .feishu_client import list_records
+
+    app_id = cfg.get("app_id", "")
+    app_secret = cfg.get("app_secret", "")
+    app_token = cfg.get("app_token", "")
+    table_id = cfg.get("table_id", "")
+    if not app_id or not app_secret:
+        return {"error": "缺少 app_id 或 app_secret"}
+    if not app_token:
+        return {"error": "缺少 app_token"}
+    if not table_id:
+        return {"error": "缺少 table_id"}
+    try:
+        items = await list_records(app_id, app_secret, app_token, table_id)
+        return {
+            "records": items,
+            "total": len(items),
+        }
+    except Exception as exc:
+        return {"error": f"读取记录失败: {exc}"}
 
 
 def _topo_order(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]) -> List[str]:

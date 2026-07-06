@@ -21,6 +21,13 @@ interface Props {
   onToggleNodePanel: () => void;
   zoom: number;
   nodeCount: number;
+  /** v0.3.10：选择模式 */
+  selectMode: boolean;
+  onToggleSelectMode: () => void;
+  onShowLogs: () => void;
+  /** v0.3.11：框选运行 */
+  selectedNodeIds: Set<string>;
+  onRunSelected: () => void;
 }
 
 type SmallToolId = 'comment' | 'optimize' | 'layout' | 'export' | 'settings';
@@ -139,8 +146,14 @@ export function BottomToolbar({
   onToggleNodePanel,
   zoom,
   nodeCount,
+  selectMode,
+  onToggleSelectMode,
+  onShowLogs,
+  selectedNodeIds,
+  onRunSelected,
 }: Props) {
   const [activeTool, setActiveTool] = useState<SmallToolId | null>(null);
+  const selCount = selectedNodeIds.size;
   return (
     <div
       style={{
@@ -190,6 +203,29 @@ export function BottomToolbar({
 
         <div style={DIVIDER} />
 
+        {/* 选择模式按钮（小图标） */}
+        <button
+          onClick={onToggleSelectMode}
+          title={selectMode ? '当前：选择模式（点击空白框选）' : '当前：平移模式（点击空白平移）'}
+          style={{
+            ...SMALL_BTN,
+            background: selectMode ? 'var(--primary, #3b82f6)' : 'transparent',
+            color: selectMode ? '#ffffff' : '#475569',
+          }}
+          onMouseEnter={(e) => {
+            if (!selectMode) (e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9';
+          }}
+          onMouseLeave={(e) => {
+            if (!selectMode) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+          }}
+        >
+          {/* 光标/选择图标 */}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+            <path d="M13 13l6 6" />
+          </svg>
+        </button>
+
         {/* 大图标按钮：添加节点（品牌蓝底白字） */}
         <button
           onClick={onToggleNodePanel}
@@ -215,8 +251,59 @@ export function BottomToolbar({
         </button>
       </div>
 
-      {/* ===== 右工具栏：1 大图标（运行） ===== */}
+      {/* ===== 右工具栏：日志 + 运行 ===== */}
       <div style={{ ...TOOLBAR_BASE, paddingLeft: 6, paddingRight: 6 }}>
+        {/* 日志按钮（小图标） */}
+        <button
+          onClick={onShowLogs}
+          title="运行日志"
+          style={SMALL_BTN}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
+          </svg>
+        </button>
+
+        <div style={DIVIDER} />
+
+        {/* v0.3.11：框选运行按钮（选中多节点时显示） */}
+        {selCount >= 2 && (
+          <>
+            <button
+              onClick={onRunSelected}
+              disabled={isRunning}
+              title={`运行选中的 ${selCount} 个节点`}
+              style={{
+                ...BIG_BTN,
+                background: isRunning ? '#334155' : '#10b981',
+                color: '#ffffff',
+                cursor: isRunning ? 'wait' : 'pointer',
+                opacity: isRunning ? 0.85 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (isRunning) return;
+                (e.currentTarget as HTMLButtonElement).style.background = '#059669';
+              }}
+              onMouseLeave={(e) => {
+                if (isRunning) return;
+                (e.currentTarget as HTMLButtonElement).style.background = '#10b981';
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="6 4 20 12 6 20 6 4" />
+              </svg>
+              运行选中 ({selCount})
+            </button>
+            <div style={DIVIDER} />
+          </>
+        )}
+
         {/* 大图标按钮：运行（品牌蓝底白字 + 三角播放图标） */}
         <button
           onClick={onTestRun}

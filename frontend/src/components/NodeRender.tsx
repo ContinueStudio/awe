@@ -68,10 +68,9 @@ export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, on
           cursor: 'pointer',
           minHeight: 64,
           boxSizing: 'border-box',
-          // v0.3.6 修复：把顶部类型色相渐变通过 CSS 变量 --node-color 注入，
-          // .node-card 类的 background 会用 var(--node-color, #f1f5f9) 渲染。
-          // 避免内联 background 覆盖 .node-card 的 box-shadow 渲染层级导致 4 角黑点。
-          '--node-color': `${color}20`, // 类型色 + 12% alpha（更轻盈的渐变过渡）
+          // v0.3.10 修复：把顶部类型色通过 CSS 变量 --node-color 注入，
+          // .node-card 用 border-top 渲染类型色，背景实底白避免重叠穿透。
+          '--node-color': color,
         } as React.CSSProperties
       }
       data-node-id={node.id}

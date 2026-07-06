@@ -66,6 +66,8 @@ export interface RunLog {
   ok: boolean;
   ms?: number;
   error?: string;
+  trace?: string;
+  desc?: string;
   ts: number;
 }
 

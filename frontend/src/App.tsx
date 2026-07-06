@@ -13,6 +13,7 @@
  * - 字体 Inter
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import React from 'react';
 import { ArrowLeft, Undo2, Redo2, History as HistoryIcon, Loader2, Rocket } from 'lucide-react';
 import { api } from '@/lib/api';
 import { LeftNav, NavKey } from './components/LeftNav';
@@ -25,6 +26,7 @@ import { NodePanel } from './components/NodePanel';
 import { BottomToolbar } from './components/BottomToolbar';
 import { ConfigPanel } from './components/ConfigPanel';
 import { ZoomControls } from './components/ZoomControls';
+import { RunHistoryDrawer } from './components/RunHistoryDrawer';
 import type { NodeDefinition, Workflow, WorkflowGraph } from '@/lib/types';
 
 const EMPTY_GRAPH: WorkflowGraph = { nodes: [], edges: [] };
@@ -76,9 +78,20 @@ export default function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
   const [showNodePanel, setShowNodePanel] = useState(false);
+  // v0.3.10：画布选择模式（true=框选/false=平移）
+  const [selectMode, setSelectMode] = useState(false);
+  const [showRunHistory, setShowRunHistory] = useState(false);
+  // v0.3.11：画布多选节点 id 集合
+  const [selectedNodeIds, setSelectedNodeIdsState] = useState<Set<string>>(new Set());
   // v0.3.5 升级：zoom (scalar) → canvasView ({ x, y, scale })，由父组件管理，传递给 Canvas 实现左下角缩放控件
   const [canvasView, setCanvasView] = useState<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 1 });
   const [toast, setToast] = useState<string | null>(null);
+
+  // v2.37：frameless 模式下整栏拖动 handler，主标题栏和编辑器顶栏共用
+  const onWindowDragMouseDown = useWindowDrag();
+
+  // 编辑器顶栏内部按钮/输入框阻止 drag 冒泡，避免点击它们时误拖动窗口
+  const stopDrag = (e: React.MouseEvent) => e.stopPropagation();
 
   // ---- 启动 ----
   useEffect(() => {
@@ -233,6 +246,42 @@ export default function App() {
     }
   }, [view, handleSave]);
 
+  // v0.3.11：单节点测试运行
+  const handleRunSingleNode = useCallback(async () => {
+    if (view.kind !== 'editor' || !selectedNodeId) return;
+    if (!view.wf.id) { await handleSave(); }
+    const targetWfId = view.wf.id;
+    setIsRunning(true);
+    try {
+      await api.runSingleNode(targetWfId, selectedNodeId, {});
+      setToast(`节点 ${selectedNodeId.slice(0, 6)} 试运行完成，查看日志`);
+      setShowRunHistory(true);
+    } catch (e) {
+      console.error('single run failed', e);
+      alert('试运行失败：' + (e as Error).message);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [view, selectedNodeId, handleSave]);
+
+  // v0.3.11：框选运行
+  const handleRunSelectedNodes = useCallback(async (nodeIds: string[]) => {
+    if (view.kind !== 'editor') return;
+    if (!view.wf.id) { await handleSave(); }
+    const targetWfId = view.wf.id;
+    setIsRunning(true);
+    try {
+      await api.runSelectedNodes(targetWfId, nodeIds, {});
+      setToast(`框选 ${nodeIds.length} 个节点运行完成，查看日志`);
+      setShowRunHistory(true);
+    } catch (e) {
+      console.error('selected run failed', e);
+      alert('框选运行失败：' + (e as Error).message);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [view, handleSave]);
+
   // 撤销 / 重做（占位 - 后续接入 Command 模式）
   const onUndo = () => setToast('撤销（待接入）');
   const onRedo = () => setToast('重做（待接入）');
@@ -258,7 +307,9 @@ export default function App() {
       return (
         <div className="h-full w-full flex flex-col" style={{ background: '#f8fafc' }}>
           {/* 顶栏（v0.3.6 - 严格按 lawe 风格：紧凑 + 精致 + 黑白灰） */}
+          {/* v2.37：加整栏拖动，但内部按钮/输入框阻止冒泡避免误触发 */}
           <header
+            onMouseDown={onWindowDragMouseDown}
             style={{
               height: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '0 12px 0 8px', flexShrink: 0,
@@ -269,6 +320,7 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
               <button
                 onClick={backToHome}
+                onMouseDown={stopDrag}
                 title="返回工作流列表"
                 style={{
                   width: 28, height: 28, borderRadius: 6,
@@ -313,6 +365,7 @@ export default function App() {
               <input
                 value={currentName}
                 onChange={(e) => setCurrentName(e.target.value)}
+                onMouseDown={stopDrag}
                 style={{
                   flex: 1,
                   maxWidth: 380,
@@ -347,6 +400,7 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
               <button
                 onClick={onUndo}
+                onMouseDown={stopDrag}
                 title="撤销 Ctrl+Z"
                 style={{
                   width: 28, height: 28, borderRadius: 6,
@@ -368,6 +422,7 @@ export default function App() {
               </button>
               <button
                 onClick={onRedo}
+                onMouseDown={stopDrag}
                 title="重做 Ctrl+Y"
                 style={{
                   width: 28, height: 28, borderRadius: 6,
@@ -393,6 +448,7 @@ export default function App() {
               {/* 版本历史按钮（次按钮样式 - lawe 风格细边白底） */}
               <button
                 onClick={onOpenVersionHistory}
+                onMouseDown={stopDrag}
                 title="版本历史"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,
@@ -419,6 +475,7 @@ export default function App() {
               {/* 发版按钮（品牌蓝底白字 + Rocket 图标） */}
               <button
                 onClick={handleSave}
+                onMouseDown={stopDrag}
                 disabled={isSaving}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,
@@ -460,6 +517,8 @@ export default function App() {
               onSave={() => {}}
               view={canvasView}
               onViewChange={setCanvasView}
+              selectMode={selectMode}
+              onSelectedIdsChange={setSelectedNodeIdsState}
             />
 
             <BottomToolbar
@@ -469,6 +528,11 @@ export default function App() {
               onToggleNodePanel={() => setShowNodePanel((v) => !v)}
               zoom={canvasView.scale}
               nodeCount={graph.nodes.length}
+              selectMode={selectMode}
+              onToggleSelectMode={() => setSelectMode((v) => !v)}
+              onShowLogs={() => setShowRunHistory(true)}
+              selectedNodeIds={selectedNodeIds}
+              onRunSelected={() => handleRunSelectedNodes(Array.from(selectedNodeIds))}
             />
 
             {/* v0.3.5 新增：左下角缩放控件（fixed 视口定位，不受 Canvas 缩放影响） */}
@@ -514,9 +578,17 @@ export default function App() {
                 onDelete={deleteSelectedNode}
                 onChange={updateNodeConfig}
                 isRunning={isRunning}
-                onRun={handleRun}
+                onRun={handleRunSingleNode}
               />
             )}
+
+            {/* v0.3.10：运行日志抽屉 */}
+            <RunHistoryDrawer
+              current={currentWf}
+              open={showRunHistory}
+              onClose={() => setShowRunHistory(false)}
+              isRunning={isRunning}
+            />
           </div>
 
           {/* Toast */}
@@ -563,7 +635,7 @@ export default function App() {
         // 整层背景用 #f8fafc（侧栏色），与 WebView2 边框色一致 → 消除"顶部黑色边框"
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: '#f8fafc' }}>
           {/* v2.27：frameless 模式下的自定义标题栏 */}
-          <CustomTitleBar />
+          <CustomTitleBar onMouseDown={onWindowDragMouseDown} />
           <div style={{ display: 'flex', flex: 1, minHeight: 0, width: '100%' }}>
             <LeftNav active={navKey} onChange={navigate} health={health} />
             <main style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden', background: '#ffffff' }}>
@@ -576,12 +648,61 @@ export default function App() {
   );
 }
 
+/* ---------- 窗口拖动 hook（v2.37 抽出复用） ----------
+   frameless 模式下整栏拖动：mousedown 同步初始化 Python 端权威位置，
+   mousemove 发送 CSS 逻辑像素增量给 move_window_delta。 */
+function useWindowDrag() {
+  const inPywebview = typeof (window as any).pywebview !== 'undefined';
+  const api = inPywebview ? (window as any).pywebview.api : null;
+
+  const dragRef = React.useRef<{ active: boolean; lastX: number; lastY: number }>({
+    active: false, lastX: 0, lastY: 0,
+  });
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    // 同步初始化 Python 端权威窗口位置（GetWindowRect，不 await）
+    api?.start_drag?.();
+    dragRef.current = {
+      active: true,
+      lastX: e.screenX,
+      lastY: e.screenY,
+    };
+  };
+
+  // 全局 mousemove / mouseup
+  React.useEffect(() => {
+    if (!inPywebview) return;
+    const onMove = (e: MouseEvent) => {
+      if (!dragRef.current.active) return;
+      const dx = e.screenX - dragRef.current.lastX;
+      const dy = e.screenY - dragRef.current.lastY;
+      if (dx === 0 && dy === 0) return;
+      dragRef.current.lastX = e.screenX;
+      dragRef.current.lastY = e.screenY;
+      api?.move_window_delta?.(dx, dy);
+    };
+    const onUp = () => {
+      dragRef.current.active = false;
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [inPywebview, api]);
+
+  return onMouseDown;
+}
+
 /* ---------- 自定义标题栏 (v2.27 frameless 模式) ----------
    pywebview 6.x 没有 title_bar_color / icon 参数
    → 用 frameless=True 去掉原生 chrome
    → 前端自绘标题栏：slate-50 背景 + 拖动区 + 最小/最大/关闭
    → 通过 window.pywebview.api.{minimize,close}() 与 Python 通讯 */
-function CustomTitleBar() {
+function CustomTitleBar({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => void }) {
   const inPywebview = typeof (window as any).pywebview !== 'undefined';
   const api = inPywebview ? (window as any).pywebview.api : null;
 
@@ -599,7 +720,11 @@ function CustomTitleBar() {
   };
 
   return (
-    <div className="awe-titlebar" style={baseStyle}>
+    <div
+      className="awe-titlebar"
+      style={baseStyle}
+      onMouseDown={onMouseDown}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#64748b' }}>
         <span style={{ fontWeight: 600, color: '#020617' }}>AWE</span>
         <span style={{ color: '#cbd5e1' }}>·</span>

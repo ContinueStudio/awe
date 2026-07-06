@@ -29,6 +29,10 @@ interface Props {
   /** 视图状态（受控） */
   view: { x: number; y: number; scale: number };
   onViewChange: (v: { x: number; y: number; scale: number }) => void;
+  /** v0.3.10: 选择模式 — true 时空闲点击进入框选，false 时空闲点击平移画布 */
+  selectMode?: boolean;
+  /** v0.3.11: 多选变化回调 */
+  onSelectedIdsChange?: (ids: Set<string>) => void;
 }
 
 const DEFAULT_VIEW = { x: 0, y: 0, scale: 1 };
@@ -45,9 +49,13 @@ export function Canvas({
   onSave,
   view,
   onViewChange,
+  selectMode = false,
+  onSelectedIdsChange,
 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // v0.3.11：多选变化通知父组件
+  useEffect(() => { onSelectedIdsChange?.(selectedIds); }, [selectedIds, onSelectedIdsChange]);
   const [draftEdge, setDraftEdge] = useState<{ fromNode: string; x: number; y: number } | null>(null);
   const [dragNode, setDragNode] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const [panning, setPanning] = useState<{ x: number; y: number } | null>(null);
@@ -108,17 +116,24 @@ export function Canvas({
     setDragNode({ id, offsetX: w.x - pos.x, offsetY: w.y - pos.y });
   };
 
-  // ---- 画布平移 / 框选 ----
+  // ---- 画布平移 / 框选 / 取消连线 ----
   const onCanvasMouseDown = (e: React.MouseEvent) => {
     if (e.target !== svgRef.current) return;
-    if (e.shiftKey) {
-      // Shift + 画布拖动：框选模式
+    // 有拖拽中的连线 -> 取消
+    if (draftEdge) {
+      cancelDraftEdge();
+      e.stopPropagation();
+      return;
+    }
+    setSelectedIds(new Set());
+    setSelectedEdgeId(null);
+    onSelectNode(null);
+    // 选择模式下点击空白画布 -> 框选；非选择模式 -> 平移
+    if (selectMode || e.shiftKey) {
       const w = screenToWorld(e.clientX, e.clientY);
       setBoxSelect({ x1: w.x, y1: w.y, x2: w.x, y2: w.y });
       return;
     }
-    setSelectedIds(new Set());
-    onSelectNode(null);
     setPanning({ x: e.clientX - view.x, y: e.clientY - view.y });
   };
 
@@ -207,6 +222,17 @@ export function Canvas({
     onChange({ ...graph, edges: [...graph.edges, newEdge] });
     setDraftEdge(null);
   };
+  // 取消拖拽连线：按 Escape 或点击空白画布
+  const cancelDraftEdge = useCallback(() => {
+    if (draftEdge) setDraftEdge(null);
+  }, [draftEdge]);
+
+  // ---- 选择/删除连线 ----
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const deleteEdge = useCallback((edgeId: string) => {
+    onChange({ ...graph, edges: graph.edges.filter((e) => (e.id || `${e.source}-${e.target}`) !== edgeId) });
+    setSelectedEdgeId(null);
+  }, [graph, onChange]);
 
   // ---- 删除 ----
   const deleteSelected = useCallback(() => {
@@ -222,15 +248,33 @@ export function Canvas({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
+      if (e.key === 'Escape') {
+        // 取消正在拖拽的连线
+        if (draftEdge) {
+          e.preventDefault();
+          cancelDraftEdge();
+        }
+        setSelectedEdgeId(null);
+        return;
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
         const target = e.target as HTMLElement | null;
         if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
-        deleteSelected();
+        // 优先删除选中的连线
+        if (selectedEdgeId) {
+          deleteEdge(selectedEdgeId);
+          return;
+        }
+        // 再删除选中的节点
+        if (selectedIds.size > 0) {
+          deleteSelected();
+          return;
+        }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [deleteSelected, selectedIds]);
+  }, [deleteSelected, selectedIds, draftEdge, cancelDraftEdge, selectedEdgeId, deleteEdge]);
 
   // ---- 保存 ----
   const save = async () => {
@@ -318,13 +362,34 @@ export function Canvas({
       >
         <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>
           {/* 已有连线（slate-400） */}
-          {graph.edges.map((e) => (
-            <path
-              key={e.id || `${e.source}-${e.target}`}
-              d={edgePath(e)}
-              className="connection-path"
-            />
-          ))}
+          {graph.edges.map((e) => {
+            const eid = e.id || `${e.source}-${e.target}`;
+            const isSelected = selectedEdgeId === eid;
+            return (
+              <g key={eid}>
+                {/* 隐形宽点击热区 */}
+                <path
+                  d={edgePath(e)}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={16}
+                  style={{ cursor: 'pointer' }}
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      setSelectedEdgeId(eid);
+                      setSelectedIds(new Set());
+                      onSelectNode(null);
+                    }}
+                />
+                {/* 可见连线 */}
+                <path
+                  d={edgePath(e)}
+                  className="connection-path"
+                  style={isSelected ? { stroke: 'var(--primary, #3b82f6)', strokeWidth: 2.5 } : undefined}
+                />
+              </g>
+            );
+          })}
           {/* 正在拖拽的连线（虚线） */}
           {draftEdge && (
             <path
@@ -369,7 +434,7 @@ export function Canvas({
                       选中态视觉完全交给 NodeRender 内部 .node-card.is-selected 处理 */}
                   <div
                     onMouseDown={(e) => onNodeMouseDown(e, n.id)}
-                    onClick={(e) => { e.stopPropagation(); setSelectedIds(new Set([n.id])); onSelectNode(n.id); }}
+                    onClick={(e) => { e.stopPropagation(); setSelectedIds(new Set([n.id])); setSelectedEdgeId(null); onSelectNode(n.id); }}
                     style={{ width: '100%' }}
                     data-node-height={h}
                   >

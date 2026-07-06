@@ -63,6 +63,21 @@ class NodeDefinition:
 NODES: List[NodeDefinition] = [
     # 6.1 触发与边界
     NodeDefinition(
+        type="start",
+        name="开始",
+        category="trigger",
+        description="工作流的起点，所有可执行节点必须位于开始节点的下游。",
+        icon="Play",
+        color="emerald",
+        outputs=[PortSpec("input", "any", "传递给下游的输入数据")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "description": {"type": "string", "title": "介绍", "format": "textarea", "default": ""},
+            },
+        },
+    ),
+    NodeDefinition(
         type="webhook",
         name="Webhook 触发器",
         category="trigger",
@@ -240,6 +255,7 @@ NODES: List[NodeDefinition] = [
         icon="Code2",
         color="sky",
         outputs=[PortSpec("result", "any", "脚本 return 内容")],
+        inputs=[PortSpec("data", "any", "上游节点传入的数据（自动合并）")],
         config_schema={
             "type": "object",
             "properties": {
@@ -265,6 +281,103 @@ NODES: List[NodeDefinition] = [
                 "title": {"type": "string", "title": "审批标题"},
                 "require_text": {"type": "boolean", "title": "需要文本输入", "default": False},
             },
+        },
+    ),
+    # 6.6 飞书多维表格
+    NodeDefinition(
+        type="feishu_bitable_create",
+        name="飞书-创建多维表格",
+        category="external",
+        description="调用飞书 Open API 创建一个新的多维表格（包含一个空白数据表），并返回 app_token / table_id / url。",
+        icon="FileSpreadsheet",
+        color="blue",
+        outputs=[PortSpec("app_token", "string", "多维表格 app_token"), PortSpec("table_id", "string", "默认数据表 id"), PortSpec("url", "string", "多维表格链接")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "app_id": {"type": "string", "title": "飞书 App ID"},
+                "app_secret": {"type": "string", "title": "飞书 App Secret", "format": "password"},
+                "name": {"type": "string", "title": "多维表格名称", "default": "AWE 工作流"},
+                "folder_token": {"type": "string", "title": "文件夹 token（可选）"},
+            },
+            "required": ["app_id", "app_secret", "name"],
+        },
+    ),
+    NodeDefinition(
+        type="feishu_bitable_field",
+        name="飞书-新增字段",
+        category="external",
+        description="在指定飞书多维表格的数据表中新增一个或多个字段。支持文本(1)、数字(2)、单选(3)、多选(4)、日期(5)等字段类型。",
+        icon="Columns",
+        color="blue",
+        inputs=[PortSpec("app_token", "string", "多维表格 app_token"), PortSpec("table_id", "string", "数据表 id")],
+        outputs=[PortSpec("fields", "array", "创建成功的字段列表")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "app_id": {"type": "string", "title": "飞书 App ID"},
+                "app_secret": {"type": "string", "title": "飞书 App Secret", "format": "password"},
+                "app_token": {"type": "string", "title": "app_token（可用模板引用上游输出）"},
+                "table_id": {"type": "string", "title": "table_id（可用模板引用上游输出）"},
+                "fields": {
+                    "type": "array",
+                    "title": "字段列表",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "field_name": {"type": "string", "title": "字段名"},
+                            "type": {"type": "integer", "title": "字段类型", "default": 1, "enum": [1, 2, 3, 4, 5], "enumNames": ["文本(1)", "数字(2)", "单选(3)", "多选(4)", "日期(5)"]},
+                        },
+                        "required": ["field_name"],
+                    },
+                },
+            },
+            "required": ["app_id", "app_secret", "fields"],
+        },
+    ),
+    NodeDefinition(
+        type="feishu_bitable_record",
+        name="飞书-新增记录",
+        category="external",
+        description="在指定飞书多维表格的数据表中新增一条记录，写入指定字段的值。",
+        icon="FilePlus",
+        color="blue",
+        inputs=[PortSpec("app_token", "string", "多维表格 app_token"), PortSpec("table_id", "string", "数据表 id")],
+        outputs=[PortSpec("record", "object", "创建成功的记录信息")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "app_id": {"type": "string", "title": "飞书 App ID"},
+                "app_secret": {"type": "string", "title": "飞书 App Secret", "format": "password"},
+                "app_token": {"type": "string", "title": "app_token（可用模板引用上游输出）"},
+                "table_id": {"type": "string", "title": "table_id（可用模板引用上游输出）"},
+                "fields": {
+                    "type": "object",
+                    "title": "字段值（key=字段名, value=值）",
+                    "description": "示例: {\"任务名称\": \"test\", \"状态\": \"进行中\"}",
+                },
+            },
+            "required": ["app_id", "app_secret", "fields"],
+        },
+    ),
+    NodeDefinition(
+        type="feishu_bitable_list_records",
+        name="飞书-读取所有记录",
+        category="external",
+        description="读取指定飞书多维表格数据表中的所有记录（自动分页），返回 records 数组。可用 skill 节点配合循环处理每条数据。",
+        icon="List",
+        color="blue",
+        inputs=[PortSpec("app_token", "string", "多维表格 app_token"), PortSpec("table_id", "string", "数据表 id")],
+        outputs=[PortSpec("records", "array", "所有记录（每条含 record_id + fields）"), PortSpec("total", "number", "记录总数")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "app_id": {"type": "string", "title": "飞书 App ID"},
+                "app_secret": {"type": "string", "title": "飞书 App Secret", "format": "password"},
+                "app_token": {"type": "string", "title": "app_token（可用模板引用上游输出）"},
+                "table_id": {"type": "string", "title": "table_id（可用模板引用上游输出）"},
+            },
+            "required": ["app_id", "app_secret"],
         },
     ),
 ]

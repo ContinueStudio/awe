@@ -130,8 +130,9 @@
      - 选中态保留双层阴影，但 hover/selected 用更深的 slate 阴影 + border 变 #0f172a。
      - 顶部类型色相渐变通过 CSS 变量 `--node-color` 注入，避免 NodeRender 用内联 background 破坏 .node-card 的 box-shadow 渲染。 */
 .node-card {
-  background: linear-gradient(180deg, var(--node-color, #f1f5f9) 0%, #ffffff 60%);
+  background: #ffffff;
   border: 1px solid #e2e8f0;
+  border-top: 3px solid var(--node-color, #f1f5f9);
   border-radius: 12px;
   box-shadow:
     0 4px 12px rgba(0, 0, 0, 0.03),

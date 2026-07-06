@@ -489,7 +489,6 @@ export function WorkflowsPage({
         current={currentLogWf}
         open={!!logWf}
         onClose={() => setLogWf(null)}
-        onRun={() => logWf && runFromHome(logWf.id)}
         isRunning={logWf ? !!runningIds[logWf.id] : false}
       />
     </div>

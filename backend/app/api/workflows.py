@@ -35,6 +35,12 @@ class RunStart(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
 
 
+class RunNodes(BaseModel):
+    """框选/部分节点运行。"""
+    node_ids: List[str] = Field(..., min_length=1)
+    inputs: Dict[str, Any] = Field(default_factory=dict)
+
+
 class BatchDeleteRequest(BaseModel):
     ids: List[str]
 
@@ -164,6 +170,116 @@ async def run_workflow(wid: str, body: RunStart) -> Dict[str, Any]:
         "error": result.get("error", ""),
     }
     return JSONResponse(content=json.loads(_safe_json(body)))
+
+
+@router.post("/workflows/{wid}/nodes/{nid}/run")
+async def run_single_node(wid: str, nid: str, body: RunStart) -> Dict[str, Any]:
+    """单节点测试运行：仅执行指定节点的逻辑，不触发上下游。"""
+    wf = db.get_workflow(wid)
+    if not wf:
+        raise HTTPException(404, "workflow not found")
+
+    graph = wf["graph"]
+    node = next((n for n in graph.get("nodes", []) if n["id"] == nid), None)
+    if not node:
+        raise HTTPException(404, f"node {nid} not found")
+
+    ntype = node["type"]
+    ndef = registry.get(ntype)
+    if not ndef:
+        raise HTTPException(400, f"unknown node type: {ntype}")
+
+    # 构建单节点图
+    mini_graph = {"nodes": [node], "edges": []}
+    try:
+        builder = WorkflowBuilder(mini_graph)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    compiled, _ = builder.compile()
+    run_id = db.start_run(wid, body.inputs)
+
+    init_state: RunState = {
+        "inputs": body.inputs,
+        "outputs": {},
+        "variables": {"__run_id__": run_id},
+        "logs": [],
+        "messages": [],
+        "finished": False,
+        "error": "",
+    }
+
+    try:
+        result = await compiled.ainvoke(init_state)
+    except Exception as exc:
+        logger.exception("单节点执行失败")
+        db.update_run(run_id, status="failed", error=str(exc), finished=True)
+        raise HTTPException(500, f"exec failed: {exc}")
+
+    status = "failed" if result.get("error") else "succeeded"
+    db.update_run(
+        run_id, status=status,
+        state={"outputs": result.get("outputs", {}), "logs": result.get("logs", [])},
+        error=result.get("error", ""), finished=True,
+    )
+    body_out = {
+        "run_id": run_id, "status": status,
+        "outputs": result.get("outputs", {}), "logs": result.get("logs", []),
+        "error": result.get("error", ""),
+    }
+    return JSONResponse(content=json.loads(_safe_json(body_out)))
+
+
+@router.post("/workflows/{wid}/run-selected")
+async def run_selected_nodes(wid: str, body: RunNodes) -> Dict[str, Any]:
+    """框选运行：仅执行指定的节点及其之间的边。"""
+    wf = db.get_workflow(wid)
+    if not wf:
+        raise HTTPException(404, "workflow not found")
+
+    graph = wf["graph"]
+    selected = set(body.node_ids)
+    all_nodes = graph.get("nodes", [])
+    filtered = [n for n in all_nodes if n["id"] in selected]
+    all_edges = graph.get("edges", [])
+    filtered_edges = [e for e in all_edges if e["source"] in selected and e["target"] in selected]
+
+    if not filtered:
+        raise HTTPException(400, "没有选中任何节点")
+
+    mini_graph = {"nodes": filtered, "edges": filtered_edges}
+    try:
+        builder = WorkflowBuilder(mini_graph)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    compiled, _ = builder.compile()
+    run_id = db.start_run(wid, body.inputs)
+
+    init_state: RunState = {
+        "inputs": body.inputs, "outputs": {}, "variables": {"__run_id__": run_id},
+        "logs": [], "messages": [], "finished": False, "error": "",
+    }
+
+    try:
+        result = await compiled.ainvoke(init_state)
+    except Exception as exc:
+        logger.exception("框选运行失败")
+        db.update_run(run_id, status="failed", error=str(exc), finished=True)
+        raise HTTPException(500, f"exec failed: {exc}")
+
+    status = "failed" if result.get("error") else "succeeded"
+    db.update_run(
+        run_id, status=status,
+        state={"outputs": result.get("outputs", {}), "logs": result.get("logs", [])},
+        error=result.get("error", ""), finished=True,
+    )
+    body_out = {
+        "run_id": run_id, "status": status,
+        "outputs": result.get("outputs", {}), "logs": result.get("logs", []),
+        "error": result.get("error", ""),
+    }
+    return JSONResponse(content=json.loads(_safe_json(body_out)))
 
 
 @router.get("/runs/{run_id}")

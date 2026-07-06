@@ -42,6 +42,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ inputs }),
     }),
+  /** 单节点测试运行 */
+  runSingleNode: (workflowId: string, nodeId: string, inputs: Record<string, unknown> = {}) =>
+    http<RunResult>(`/workflows/${workflowId}/nodes/${nodeId}/run`, {
+      method: 'POST',
+      body: JSON.stringify({ inputs }),
+    }),
+  /** 框选节点运行 */
+  runSelectedNodes: (workflowId: string, nodeIds: string[], inputs: Record<string, unknown> = {}) =>
+    http<RunResult>(`/workflows/${workflowId}/run-selected`, {
+      method: 'POST',
+      body: JSON.stringify({ node_ids: nodeIds, inputs }),
+    }),
   listRuns: (workflowId?: string, limit = 50) =>
     http<{ runs: RunRecord[] }>(
       `/runs?workflow_id=${workflowId ?? ''}&limit=${limit}`,
