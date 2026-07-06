@@ -54,6 +54,17 @@
 - ✅ **Python 端**: `confirm_close=False` + `force_close()` + `on_closing` 拦截
 - 📋 **版本号**: PRD v2.29 → v2.30, DEV v0.3.7i → v0.3.8
 
+**【避坑】v0.3.8c 补丁：关闭按钮卡死根因与修复**
+
+- 🐛 **Bug**: 点击关闭按钮 → 显示确认对话框 → 点击确定 → Python 未响应（卡死）
+- **根因**: `on_closing` 事件回调中调用 `evaluate_js` 通知前端显示确认对话框。`evaluate_js` 在 Python 的 WebView2 线程中是同步阻塞调用，但 `closing` 回调本身也运行在主线程。用户点击确定后调用 `window.destroy()`，再次触发 `closing` 事件 → 再次 `evaluate_js` → 死锁。
+- **修复**: 移除 `launch_window.py` 和 `main.py` 的 `on_closing` 事件拦截，让前端自行管理关闭确认流程：
+  - 关闭按钮 `onClick` → 直接 `setCloseConfirmOpen(true)`（不调用 Python API）
+  - 用户确认 → 调用 `api.close_window()` → 直接 `window.destroy()`（无拦截）
+- 💡 **避坑**: 永远不要在 `closing` 事件回调中使用 `evaluate_js`（或任何需要与 JS 交互的阻塞调用），会导致死锁
+- 涉及文件: `launch_window.py`, `main.py`
+- GitHub: ffbb0a9
+
 ### 1.0 今日进展 (2026-07-06 15:45) -- v0.3.8 patch 2
 
 - 🐛 **Bug 1**: 节点内删除按钮点击无反应（Canvas 未传递 onDelete）
