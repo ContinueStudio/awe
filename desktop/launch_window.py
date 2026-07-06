@@ -95,10 +95,15 @@ def main() -> int:
 
     try:
         _run_gui(webview, stop_event)
+    except SystemExit:
+        raise
     except Exception:
         import traceback
+        # 打印完整 traceback 到 stdout（方便 start.py 捕获）
         print(f"[AWE] 致命错误:", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
+        # 同时 flush stdout 确保日志被 start.py 捕获
+        traceback.print_exc(file=sys.stdout)
         return 1
     finally:
         print(f"[AWE] 窗口已关闭，停止后端...")
@@ -111,18 +116,23 @@ def main() -> int:
 def _run_gui(webview, stop_event: threading.Event) -> None:
     """GUI 主循环。"""
 
-    window = webview.create_window(
-        title="AWE",
-        url=f"{BACKEND}/",
-        width=1440,
-        height=900,
-        min_size=(1100, 720),
-        confirm_close=False,
-        text_select=True,
-        frameless=True,
-        easy_drag=False,
-        background_color="#f8fafc",
-    )
+    print(f"[AWE] 创建 pywebview 窗口...", flush=True)
+    try:
+        window = webview.create_window(
+            title="AWE",
+            url=f"{BACKEND}/",
+            width=1440,
+            height=900,
+            min_size=(1100, 720),
+            confirm_close=False,
+            text_select=True,
+            frameless=True,
+            easy_drag=False,
+            background_color="#f8fafc",
+        )
+    except Exception as e:
+        print(f"[AWE] 窗口创建失败: {e}", flush=True)
+        raise
 
     # v2.36：修复高 DPI 缩放下的拖动偏移
     # 关键：window.move() 接收逻辑像素，GetWindowRect 返回物理像素
@@ -187,16 +197,19 @@ def _run_gui(webview, stop_event: threading.Event) -> None:
     window.expose(close_window)
 
     # 拦截系统关闭事件：通知前端显示自定义确认对话框（无系统提示音）
-    def on_closing():
-        try:
-            window.evaluate_js(
-                'window.__showCloseConfirm && window.__showCloseConfirm()'
-            )
-        except Exception:
-            pass
-        return False  # 阻止默认关闭，由前端确认后调用 close_window
+    try:
+        def on_closing():
+            try:
+                window.evaluate_js(
+                    'window.__showCloseConfirm && window.__showCloseConfirm()'
+                )
+            except Exception:
+                pass
+            return False  # 阻止默认关闭，由前端确认后调用 close_window
 
-    window.events.closing += on_closing
+        window.events.closing += on_closing
+    except Exception as e:
+        print(f"[AWE] 关闭事件注册失败: {e}", file=sys.stderr)
 
     webview.start()
 
