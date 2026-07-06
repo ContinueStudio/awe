@@ -107,6 +107,22 @@ class WorkflowBuilder:
             outputs = await _run_feishu_bitable_record(cfg)
         elif ntype == "feishu_bitable_list_records":
             outputs = await _run_feishu_bitable_list_records(cfg)
+        elif ntype == "excel_save_records":
+            # 从上游节点获取 records 数据
+            upstream: Dict[str, Any] = {}
+            for e in getattr(self, "_edges_cache", []):
+                if e.get("target") == nid:
+                    src_out = state.get("outputs", {}).get(e["source"])
+                    if src_out is not None:
+                        upstream[e["source"]] = src_out
+            if "records" not in cfg and upstream:
+                for src_id, src_data in upstream.items():
+                    if isinstance(src_data, dict):
+                        recs = src_data.get("records")
+                        if recs is not None:
+                            cfg["records"] = recs
+                            break
+            outputs = await _run_excel_save_records(cfg)
         else:
             outputs = {"__unknown__": ntype}
 
@@ -504,6 +520,57 @@ async def _run_feishu_bitable_list_records(cfg: Dict[str, Any]) -> Dict[str, Any
         }
     except Exception as exc:
         return {"error": f"读取记录失败: {exc}"}
+
+
+async def _run_excel_save_records(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """将记录数组写入 Excel 文件。记录格式为 [{record_id, fields: {key: val}}, ...]，
+    自动提取 fields 的 key 作为表头，每条 record 的 fields.values() 为一行。"""
+    import openpyxl
+    from pathlib import Path
+
+    filename = cfg.get("filename", "output.xlsx")
+    sheet_name = cfg.get("sheet_name", "Sheet1")
+    records = cfg.get("records", cfg.get("data", []))
+    if isinstance(records, str):
+        import json as _json
+        try: records = _json.loads(records)
+        except Exception: records = []
+    if not records or not isinstance(records, list):
+        return {"file": "", "rows": 0, "error": "records 为空或格式错误"}
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    if ws: ws.title = sheet_name
+
+    # 找第一个有 fields 的记录，提取字段名作为表头
+    headers: list[str] = []
+    for rec in records:
+        if isinstance(rec, dict) and "fields" in rec and isinstance(rec["fields"], dict):
+            headers = list(rec["fields"].keys())
+            break
+    if not headers:
+        # 纯字段 dict 格式：直接取 key
+        if isinstance(records[0], dict):
+            headers = list(records[0].keys())
+    if not headers:
+        return {"file": "", "rows": 0, "error": "无法从记录中提取字段名"}
+
+    if ws: ws.append(headers)
+
+    count = 0
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        fields = rec.get("fields", rec) if isinstance(rec, dict) else rec
+        if not isinstance(fields, dict):
+            continue
+        row = [fields.get(h, "") for h in headers]
+        if ws: ws.append(row)
+        count += 1
+
+    path = Path(filename)
+    wb.save(str(path))
+    return {"file": str(path.absolute()), "rows": count}
 
 
 def _topo_order(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]) -> List[str]:

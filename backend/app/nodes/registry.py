@@ -209,6 +209,44 @@ NODES: List[NodeDefinition] = [
             },
         },
     ),
+    # Excel 节点
+    NodeDefinition(
+        type="excel_save_records",
+        name="Excel-保存记录",
+        category="knowledge",
+        description="将上游记录数组写入新的 Excel 文件，自动提取字段名作为表头，每条记录为一行数据。",
+        icon="FileSpreadsheet",
+        color="amber",
+        inputs=[PortSpec("data", "array", "记录数组")],
+        outputs=[PortSpec("file", "string", "保存的文件路径"), PortSpec("rows", "number", "写入行数")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "title": "文件名", "default": "output.xlsx"},
+                "sheet_name": {"type": "string", "title": "工作表名", "default": "Sheet1"},
+            },
+            "required": ["filename"],
+        },
+    ),
+    # SQLite
+    NodeDefinition(
+        type="sqlite",
+        name="结构化表格读写",
+        category="knowledge",
+        description="对 SQLite 表进行可视化的增删改查（CRUD）。",
+        icon="Table2",
+        color="amber",
+        outputs=[PortSpec("rows", "array", "查询结果行")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "operation": {"type": "string", "enum": ["select", "insert", "update", "delete"]},
+                "table": {"type": "string"},
+                "where": {"type": "string", "title": "WHERE 子句 (raw SQL)"},
+                "data": {"type": "object", "title": "写入数据 (insert/update)"},
+            },
+        },
+    ),
     # 6.4 外部生态与控制
     NodeDefinition(
         type="http",
