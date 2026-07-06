@@ -1,11 +1,28 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.30**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.31**（已落地）
 
 ---
 
-## 1. 当前进度 (v0.3.8 - 2026-07-06)
+## 1. 当前进度 (v0.3.9 - 2026-07-06)
+
+### 1.0 今日进展 (2026-07-06 17:20) -- v0.3.9：新增 7 个业务逻辑节点 (PRD v2.31)
+
+**【本轮】v0.3.9：分支/循环/并行/异步逻辑节点**
+
+- ✅ **新增节点** (分类: logic, 颜色: orange #f97316):
+  - `branch` (判断器): 条件表达式 True/False 分支判断，两个输出端口 (result/rejected)
+  - `loop_count` (次数循环): 重复执行 N 次，输出 items/count
+  - `loop_list` (列表循环): 遍历列表，输出 item/index/total
+  - `loop_dict` (字典循环): 遍历字典，输出 key/value/index/total
+  - `loop_condition` (条件循环): While 条件循环，最大迭代保护
+  - `parallel` (并行执行): 多分支并行，可选合并策略
+  - `async_exec` (异步执行): 异步任务，支持即发即忘/等待完成
+- ✅ 后端: registry schema + builder 执行器 (_run_branch / _run_loop_* / _run_parallel / _run_async_exec)
+- ✅ 前端: NodeRender 类型预览 + orange 色条
+- 📋 构建: 260.46 kB / gzip 78.26 kB, hash CFIm3zrO
+- 📋 版本号: PRD v2.30 → v2.31, DEV v0.3.8 → v0.3.9
 
 ### 1.0 今日进展 (2026-07-06 14:30) -- v0.3.8：复制粘贴 + 路径参数 + 自定义确认对话框 (PRD v2.30)
 
