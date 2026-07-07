@@ -15,9 +15,10 @@ const CATEGORY_LABEL: Record<string, string> = {
   knowledge: '知识 / 数据',
   external:  '外部生态',
   human:     '人类管理',
+  logic:     '业务逻辑',
 };
 
-const CATEGORY_ORDER: string[] = ['trigger', 'ai', 'knowledge', 'external', 'human'];
+const CATEGORY_ORDER: string[] = ['trigger', 'ai', 'knowledge', 'logic', 'external', 'human'];
 
 const COLOR_BAR: Record<string, string> = {
   emerald: '#10b981',
