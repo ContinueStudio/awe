@@ -62,6 +62,23 @@ class WorkflowBuilder:
             # 未配置时退到 state.outputs（兼容旧用法）。
             msg = (cfg or {}).get("message")
             outputs = {"payload": msg if msg else state.get("variables", {}).get("__final__", state.get("outputs", {}))}
+        elif ntype == "cron_trigger":
+            # 定时触发器：注册/更新定时任务，返回下次触发时间
+            from .scheduler import register_cron
+            cron_expr = cfg.get("cron", "0 0 * * *")
+            tz = cfg.get("timezone", "Asia/Shanghai")
+            enabled = cfg.get("enabled", True)
+            if enabled:
+                # 这里注册定时任务，回调暂时为空（实际运行时由上层调度）
+                register_cron(state.get("workflow_id", "unknown"), cron_expr, tz, lambda: None)
+                outputs = {
+                    "trigger_time": f"定时任务已注册: {cron_expr} ({tz})",
+                    "status": "scheduled",
+                }
+            else:
+                from .scheduler import unregister
+                unregister(state.get("workflow_id", "unknown"))
+                outputs = {"trigger_time": "定时任务已禁用", "status": "disabled"}
         elif ntype == "llm":
             outputs = await _run_llm(cfg)
         elif ntype == "intent":

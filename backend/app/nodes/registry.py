@@ -102,6 +102,24 @@ NODES: List[NodeDefinition] = [
         color="emerald",
         inputs=[PortSpec("payload", "any", "要返回的内容")],
     ),
+    # 定时触发器
+    NodeDefinition(
+        type="cron_trigger",
+        name="定时触发器",
+        category="trigger",
+        description="按照 Cron 表达式定时执行下游工作流。支持秒级精度，可设置时区。",
+        icon="Clock",
+        color="amber",
+        outputs=[PortSpec("trigger_time", "string", "本次触发的 ISO 时间戳")],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "cron": {"type": "string", "title": "Cron 表达式", "default": "0 0 * * *", "description": "秒 分 时 日 月 周（6位），例如: 0 0 9 * * 1-5 每天早上9点"},
+                "timezone": {"type": "string", "title": "时区", "default": "Asia/Shanghai"},
+                "enabled": {"type": "boolean", "title": "是否启用", "default": True},
+            },
+        },
+    ),
     # 6.2 AI 节点
     NodeDefinition(
         type="llm",

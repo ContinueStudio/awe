@@ -153,6 +153,20 @@ function NodePreview({ kind, config, defName }: { kind: string; config: Record<s
           </code>
         </div>
       );
+    case 'cron_trigger':
+      return (
+        <div>
+          <div style={labelStyle}>Cron 表达式</div>
+          <code className="awe-badge awe-badge-success" style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
+            {(config.cron as string) || '0 0 * * *'}
+          </code>
+          <div style={{ ...labelStyle, marginTop: 6 }}>时区</div>
+          <div style={{ fontSize: 12, color: '#475569' }}>
+            {(config.timezone as string) || 'Asia/Shanghai'}
+            {(config.enabled !== false) ? <span className="awe-badge awe-badge-success" style={{ marginLeft: 6, fontSize: 10 }}>已启用</span> : <span className="awe-badge awe-badge-muted" style={{ marginLeft: 6, fontSize: 10 }}>已禁用</span>}
+          </div>
+        </div>
+      );
     case 'http_request':
       return (
         <div>
