@@ -22,10 +22,8 @@ pyppeteer>=2.0
 # 调度
 apscheduler>=3.10
 
-# RPA（按需安装，体积大）
-# DrissionPage>=4.0
-# pywinauto>=0.6
-# PyAutoGUI>=0.9
+# RPA
+DrissionPage>=4.0
 
 # 开发
 pytest>=8.0

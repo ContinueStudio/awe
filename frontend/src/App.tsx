@@ -99,6 +99,10 @@ export default function App() {
   // v0.3.x: 运行出错的节点 ID 集合（高亮红色）
   const [errorNodeIds, setErrorNodeIds] = useState<Set<string>>(new Set());
 
+  // v0.3.8: RPA 录制状态
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSessionId, setRecordingSessionId] = useState<string | null>(null);
+
   // 配置修改防抖：连续输入时只记录最终状态
   const configDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastConfigGraphRef = useRef<WorkflowGraph | null>(null);
@@ -422,6 +426,46 @@ export default function App() {
     }
   }, [view, handleSave]);
 
+  // v0.3.8: RPA 录制（PRD §4.6）
+  const handleRecord = useCallback(async () => {
+    if (isRecording) {
+      if (!recordingSessionId) return;
+      setIsRecording(false);
+      try {
+        const r = await fetch('/api/browser/record/stop', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: recordingSessionId }),
+        });
+        const d = await r.json();
+        if (d.ok && d.python_code) {
+          const id = `n_${Date.now().toString(36)}`;
+          pushGraph({
+            nodes: [...graph.nodes, {
+              id, type: 'skill_python',
+              config: { code: d.python_code },
+              meta: { title: `RPA 录制脚本 (${d.count}步)`, x: 200 + (graph.nodes.length % 3) * 380, y: 120 + Math.floor(graph.nodes.length / 3) * 200 },
+            }],
+            edges: [...graph.edges],
+          });
+          setToast(`RPA 录制完成，已插入 ${d.count || '?'} 步脚本`);
+        }
+        await fetch('/api/browser/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: recordingSessionId }) });
+      } catch (e) { setToast('录制停止失败：' + (e as Error).message); }
+      setRecordingSessionId(null);
+    } else {
+      try {
+        const r = await fetch('/api/browser/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: 'about:blank' }) });
+        const d = await r.json();
+        if (d.ok && d.session_id) {
+          setRecordingSessionId(d.session_id);
+          await fetch('/api/browser/record/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: d.session_id }) });
+          setIsRecording(true);
+          setToast('录制已开始，在浏览器中操作后再次点击红色按钮结束');
+        } else { setToast('浏览器启动失败：' + (d.error || '未知')); }
+      } catch (e) { setToast('录制启动失败：' + (e as Error).message); }
+    }
+  }, [isRecording, recordingSessionId, graph, pushGraph]);
+
   // 撤销 / 重做（已接入 useUndoRedo）
   const onUndo = () => {
     if (!canUndo) { setToast('没有更早的记录了'); return; }
@@ -693,6 +737,8 @@ export default function App() {
               onShowLogs={() => setShowRunHistory(true)}
               selectedNodeIds={selectedNodeIds}
               onRunSelected={() => handleRunSelectedNodes(Array.from(selectedNodeIds))}
+              onRecord={handleRecord}
+              isRecording={isRecording}
             />
 
             {/* v0.3.5 新增：左下角缩放控件（fixed 视口定位，不受 Canvas 缩放影响） */}

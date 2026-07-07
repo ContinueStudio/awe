@@ -17,6 +17,10 @@ from ..engine.state import RunState
 from ..engine.validator import validate_graph
 from ..nodes.registry import registry
 from ..core.crypto import encrypt as crypto_encrypt, decrypt as crypto_decrypt
+from ..engine.browser import (
+    create_session, get_session, close_session, list_sessions,
+    actions_to_python_code, BrowserSession,
+)
 
 logger = get_logger("awe.api.workflows")
 router = APIRouter()
@@ -339,6 +343,76 @@ def delete_setting(key: str) -> Dict[str, Any]:
     """删除单条设置项。"""
     db.set_setting(key, "")
     return {"ok": True}
+
+
+# ---------------- RPA 浏览器 ----------------
+
+class BrowserStart(BaseModel):
+    url: str = "about:blank"
+
+
+class BrowserNavigate(BaseModel):
+    session_id: str = Field(..., min_length=1)
+    url: str = Field(..., min_length=1)
+
+
+class BrowserAction(BaseModel):
+    session_id: str = Field(..., min_length=1)
+
+
+@router.post("/browser/start")
+def rpa_browser_start(body: BrowserStart) -> Dict[str, Any]:
+    """启动浏览器录制会话。"""
+    result = create_session(body.url)
+    if not result["ok"]:
+        raise HTTPException(500, result.get("error", "启动失败"))
+    return result
+
+
+@router.post("/browser/navigate")
+def rpa_browser_navigate(body: BrowserNavigate) -> Dict[str, Any]:
+    """浏览器导航到指定 URL。"""
+    session = get_session(body.session_id)
+    if not session:
+        raise HTTPException(404, "session not found")
+    result = session.navigate(body.url)
+    if not result["ok"]:
+        raise HTTPException(500, result.get("error", "导航失败"))
+    return result
+
+
+@router.post("/browser/record/start")
+def rpa_record_start(body: BrowserAction) -> Dict[str, Any]:
+    """开始录制浏览器操作。"""
+    session = get_session(body.session_id)
+    if not session:
+        raise HTTPException(404, "session not found")
+    return session.start_recording()
+
+
+@router.post("/browser/record/stop")
+def rpa_record_stop(body: BrowserAction) -> Dict[str, Any]:
+    """停止录制，返回操作序列 + Python 代码。"""
+    session = get_session(body.session_id)
+    if not session:
+        raise HTTPException(404, "session not found")
+    result = session.stop_recording()
+    if result["ok"] and result.get("actions"):
+        code = actions_to_python_code(session.actions)
+        result["python_code"] = code
+    return result
+
+
+@router.post("/browser/stop")
+def rpa_browser_stop(body: BrowserAction) -> Dict[str, Any]:
+    """关闭浏览器会话。"""
+    return close_session(body.session_id)
+
+
+@router.get("/browser/sessions")
+def rpa_browser_list() -> Dict[str, Any]:
+    """列出所有活跃的浏览器会话。"""
+    return {"sessions": list_sessions()}
 
 
 @router.get("/runs/{run_id}")
