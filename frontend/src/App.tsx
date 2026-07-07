@@ -266,7 +266,15 @@ export default function App() {
       ...graph,
       nodes: graph.nodes.map((n) => (n.id === selectedNodeId ? { ...n, config: cfg } : n)),
     };
-    pushGraph(updated);
+    // 防抖：连续配置编辑时记录最终状态，只在停止输入 500ms 后推入历史
+    lastConfigGraphRef.current = updated;
+    if (configDebounceRef.current) clearTimeout(configDebounceRef.current);
+    configDebounceRef.current = setTimeout(() => {
+      if (lastConfigGraphRef.current) {
+        pushGraph(lastConfigGraphRef.current);
+        lastConfigGraphRef.current = null;
+      }
+    }, 500);
   };
 
   const deleteSelectedNode = () => {
