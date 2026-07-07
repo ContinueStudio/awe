@@ -540,7 +540,7 @@ export default function App() {
                 padding: '1px 6px', background: '#f8fafc', border: '1px solid #e2e8f0',
                 borderRadius: 4, flexShrink: 0,
               }}>
-                v0.3.7
+                v0.3.8
               </span>
             </div>
 

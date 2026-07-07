@@ -5,7 +5,36 @@
 
 ---
 
-## 1. 当前进度 (v0.3.7 - 2026-07-07 13:15)
+## 1. 当前进度 (v0.3.8 - 2026-07-07 15:30)
+
+### 1.3 今日进展 (2026-07-07 15:30)
+
+**【本轮】v0.3.8：阶段二 — 编辑器核心体验（PRD §4.2 §4.4）**
+
+- 🔄 **E-1: 撤销/重做系统**（`hooks/useUndoRedo.ts` + `App.tsx`）：
+  - 新增 `useUndoRedo` hook：Command 模式，维护 undoStack + redoStack
+  - 历史栈上限 20 步，新操作清空 redo 栈
+  - 集成到 App.tsx：所有 `setGraph()` 替换为 `pushGraph()`，包括添加/删除/更新节点、连线变更、Canvas onChange
+  - Ctrl+Z / Ctrl+Y 快捷键
+  - 发版（保存）后自动 `clearHistory()`
+  - 配置修改防抖：添加 `configDebounceRef` 和 `lastConfigGraphRef` 引用
+
+- ✅ **E-2: 单击选中 / 双击编辑** — 已有 `handleRowClick` + `handleRowDoubleClick`，无需改动
+
+- ✅ **E-3: Ctrl/Shift 多选 + 批量删除** — 已有 `selectedIds` + `batchDelete` + smartDelete，无需改动
+
+- 📋 **E-4: 执行历史详情侧边栏**（`pages/HistoryPage.tsx` 重写）：
+  - 点击单条 Run → 右侧展开 440px 详情面板
+  - 原生文本日志（暗色终端风格 `#1e293b` 背景，含 Traceback 红色高亮）
+  - Outputs（绿色 JSON）/ Inputs（灰色 JSON）折叠面板
+  - Error + Traceback 红色告警框
+  - 3s 自动刷新列表，最大 100 条历史
+
+- 🐛 **避坑**：
+  - `useUndoRedo` 用 `useRef` 存栈避免渲染抖动，用 `skipRef` 避免 undo/redo 触发的 set 被二次入栈
+  - HistoryPage 需要调用 `api.getRun(runId)` 获取完整详情（含 state.logs / error），`listRuns` 只返回摘要
+
+### 1.2 第二次修复 (2026-07-07 14:47)
 
 ### 1.2 第二次修复 (2026-07-07 14:47)
 

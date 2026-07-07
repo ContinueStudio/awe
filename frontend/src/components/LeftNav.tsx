@@ -127,7 +127,7 @@ export function LeftNav({ active, onChange, health }: Props) {
 
       {/* 底部版本号 */}
       <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', fontSize: 10, color: '#94a3b8' }}>
-        v0.3.7
+        v0.3.8
       </div>
     </aside>
   );
