@@ -7,6 +7,25 @@
 
 ## 1. 当前进度 (v0.3.7 - 2026-07-07 13:15)
 
+### 1.1 紧急修复 (2026-07-07 13:45)
+
+**问题**：用户反馈"顶部菜单栏改没了" + "右侧阴影比较黑"
+
+**根因分析**：
+- `HomePage.tsx` 被误删了大量功能：多选(Ctrl/Shift)、批量删除、自定义确认对话框、页面 Toast、选中态高亮、多选提示文字
+- `RunHistoryDrawer` 的 `shadow-2xl` 在 `translate-x-full` 关闭状态下仍渲染，阴影溢出到视口右侧形成黑影
+
+**修复**：
+- `HomePage.tsx`：`git checkout HEAD --` 恢复原始版本（包含多选/批量操作/确认对话框/Toast）
+- `RunHistoryDrawer.tsx`：关闭时添加 `opacity-0 pointer-events-none overflow-hidden`，避免 `shadow-2xl` 溢出
+  - 修改位置：`className={cn(...)}` 中 `open ? "translate-x-0 opacity-100" : "translate-x-full opacity-0 pointer-events-none overflow-hidden"`
+
+**提交**：`7188d2e` → push to main
+
+**避坑**：`fixed` 定位 + `backdrop-filter` + 大 `box-shadow` 在 `transform` 移出屏幕时，某些浏览器仍可能渲染阴影边缘。最安全的方案是 `!open` 时加 `opacity-0` 彻底隐藏。
+
+---
+
 ### 1.0 今日进展 (2026-07-07 13:15)
 
 **【本轮】v0.3.7：阶段一 — 数据模型、回收站、加密存储、沙盒升级（PRD v3.0 §1.2 §4.1 §8.1 §8.4）**
