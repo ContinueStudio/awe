@@ -30,6 +30,7 @@ import { ZoomControls } from './components/ZoomControls';
 import { RunHistoryDrawer } from './components/RunHistoryDrawer';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import type { NodeDefinition, Workflow, WorkflowGraph, CanvasNode } from '@/lib/types';
+import { useUndoRedo } from '@/hooks/useUndoRedo';
 
 const EMPTY_GRAPH: WorkflowGraph = { nodes: [], edges: [] };
 
@@ -73,7 +74,7 @@ export default function App() {
   const [view, setView] = useState<View>({ kind: 'workflows' });
 
   // Editor 状态
-  const [graph, setGraph] = useState<WorkflowGraph>(EMPTY_GRAPH);
+  const { graph, push: pushGraph, undo, redo, clear: clearHistory, canUndo, canRedo } = useUndoRedo(EMPTY_GRAPH);
   const [currentName, setCurrentName] = useState('未命名工作流');
   const [isRunning, setIsRunning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -97,6 +98,10 @@ export default function App() {
   const [clipboard, setClipboard] = useState<CanvasNode[] | null>(null);
   // v0.3.x: 运行出错的节点 ID 集合（高亮红色）
   const [errorNodeIds, setErrorNodeIds] = useState<Set<string>>(new Set());
+
+  // 配置修改防抖：连续输入时只记录最终状态
+  const configDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastConfigGraphRef = useRef<WorkflowGraph | null>(null);
 
   // 复制选中节点（Ctrl+C）
   const copySelectedNodes = useCallback(() => {
@@ -123,7 +128,7 @@ export default function App() {
         y: (n.meta?.y ?? 120) + offsetY,
       },
     }));
-    setGraph((prev) => ({ ...prev, nodes: [...prev.nodes, ...newNodes] }));
+    pushGraph({ ...graph, nodes: [...graph.nodes, ...newNodes] });
     const newIds = new Set(newNodes.map((n) => n.id));
     setSelectedNodeIdsState(newIds);
     setToast(`已粘贴 ${newNodes.length} 个节点`);
@@ -139,10 +144,10 @@ export default function App() {
 
   // 删除单个节点
   const deleteNode = useCallback((nodeId: string) => {
-    setGraph((prev) => ({
-      nodes: prev.nodes.filter((n) => n.id !== nodeId),
-      edges: prev.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
-    }));
+    pushGraph({
+      nodes: graph.nodes.filter((n) => n.id !== nodeId),
+      edges: graph.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+    });
     if (selectedNodeId === nodeId) {
       setSelectedNodeId(null);
       setConfigOpen(false);
@@ -206,7 +211,8 @@ export default function App() {
       } catch (e) { graphData = EMPTY_GRAPH; }
     }
     setView({ kind: 'editor', wf: { ...wf, graph: graphData } });
-    setGraph(autoLayoutNodes(graphData));
+    clearHistory(); // 新编辑会话，清空历史
+    pushGraph(autoLayoutNodes(graphData));
     setCurrentName(wf.name);
     setSelectedNodeId(null);
     setConfigOpen(false);
@@ -237,7 +243,7 @@ export default function App() {
     if (!def) return;
     const id = `n_${Date.now().toString(36)}`;
     const step = graph.nodes.length;
-    setGraph({
+    pushGraph({
       nodes: [
         ...graph.nodes,
         {
@@ -256,15 +262,16 @@ export default function App() {
 
   const updateNodeConfig = (cfg: any) => {
     if (!selectedNodeId) return;
-    setGraph({
+    const updated = {
       ...graph,
       nodes: graph.nodes.map((n) => (n.id === selectedNodeId ? { ...n, config: cfg } : n)),
-    });
+    };
+    pushGraph(updated);
   };
 
   const deleteSelectedNode = () => {
     if (!selectedNodeId) return;
-    setGraph({
+    pushGraph({
       nodes: graph.nodes.filter((n) => n.id !== selectedNodeId),
       edges: graph.edges.filter((e) => e.source !== selectedNodeId && e.target !== selectedNodeId),
     });
@@ -285,6 +292,7 @@ export default function App() {
         edges: graph.edges,
       });
       setToast('已保存');
+      clearHistory(); // 发版后清空历史
     } catch (e) {
       console.error(e);
       alert('保存失败：' + (e as Error).message);
@@ -406,11 +414,27 @@ export default function App() {
     }
   }, [view, handleSave]);
 
-  // 撤销 / 重做（占位 - 后续接入 Command 模式）
-  const onUndo = () => setToast('撤销（待接入）');
-  const onRedo = () => setToast('重做（待接入）');
-
-  // 版本历史（占位 - 后续接入版本管理）
+  // 撤销 / 重做（已接入 useUndoRedo）
+  const onUndo = () => {
+    if (!canUndo) { setToast('没有更早的记录了'); return; }
+    undo();
+    setToast('已撤销');
+  };
+  const onRedo = () => {
+    if (!canRedo) { setToast('无法重做'); return; }
+    redo();
+    setToast('已重做');
+  };
+  // Ctrl+Z / Ctrl+Y 快捷键
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (view.kind !== 'editor') return;
+      if (e.ctrlKey && e.key === 'z') { e.preventDefault(); onUndo(); }
+      if (e.ctrlKey && e.key === 'y') { e.preventDefault(); onRedo(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [canUndo, canRedo, view.kind]);
   const onOpenVersionHistory = () => setToast('版本历史（待接入）');
 
   // ---- 当前 wf 用于配置 ----
@@ -634,7 +658,7 @@ export default function App() {
               workflowName={currentName}
               graph={graph}
               nodes={nodes}
-              onChange={setGraph}
+              onChange={pushGraph}
               onWorkflowId={() => {}}
               onWorkflowName={setCurrentName}
               onSelectNode={(id) => { setSelectedNodeId(id); setConfigOpen(!!id); if (id) setErrorNodeIds((prev) => { const next = new Set(prev); next.delete(id); return next; }); }}
