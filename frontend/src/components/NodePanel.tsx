@@ -5,7 +5,7 @@
  * - 节点 icon 用首字母字符（类型色条 + 白字）
  * - hover 节点弹出 240px 简介浮卡（portal 到 body，避免被内部 scroll 裁剪）
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 import type { NodeDefinition } from '@/lib/types';
@@ -19,7 +19,6 @@ const COLOR_BAR: Record<string, string> = {
   rose:    '#f43f5e',
   slate:   '#475569',
   violet:  '#8b5cf6',
-  orange:  '#f97316',
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -28,10 +27,9 @@ const CATEGORY_LABEL: Record<string, string> = {
   knowledge: '知识 / 数据',
   external:  '外部生态',
   human:     '人类管理',
-  logic:     '逻辑与控制流',
 };
 
-const CATEGORY_ORDER: string[] = ['trigger', 'ai', 'knowledge', 'external', 'human', 'logic'];
+const CATEGORY_ORDER: string[] = ['trigger', 'ai', 'knowledge', 'external', 'human'];
 
 interface Props {
   onAdd: (type: string) => void;

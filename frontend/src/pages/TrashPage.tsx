@@ -244,6 +244,7 @@ export function TrashPage() {
       {/* 确认对话框 */}
       {confirmAction && (
         <ConfirmDialog
+          open={true}
           title={
             <span>
               <AlertTriangle size={16} style={{ color: '#dc2626', verticalAlign: 'middle', marginRight: 6 }} />
@@ -258,7 +259,7 @@ export function TrashPage() {
               此操作不可恢复。
             </span>
           }
-          confirmLabel="彻底删除"
+          confirmText="彻底删除"
           danger
           onConfirm={() => {
             handlePermanentDelete(confirmAction.wf);

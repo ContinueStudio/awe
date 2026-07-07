@@ -7,11 +7,10 @@
  */
 import { useEffect, useState, useCallback } from 'react';
 import {
-  History, X, CheckCircle2, XCircle, Loader2, ChevronRight, ChevronDown, ChevronUp,
+  History, X, Loader2, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { RunLog, RunRecord } from '@/lib/types';
-import { cn } from '@/lib/utils';
 
 function fmtTime(ts: number | null | undefined) {
   if (!ts) return '—';

@@ -23,7 +23,6 @@ const COLOR_BAR: Record<string, string> = {
   rose:    '#f43f5e', // rose-500
   slate:   '#475569', // slate-600
   violet:  '#8b5cf6', // violet-500
-  orange:  '#f97316', // orange-500
 };
 
 interface Props {
@@ -36,10 +35,9 @@ interface Props {
   onStartEdge?: (e: React.MouseEvent) => void;
   onCompleteEdge?: (e: React.MouseEvent) => void;
   onMeasured?: (h: number) => void;
-  error?: boolean;
 }
 
-export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, onDelete, onStartEdge, onCompleteEdge, onMeasured, error }: Props) {
+export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, onDelete, onStartEdge, onCompleteEdge, onMeasured }: Props) {
   const color = COLOR_BAR[def.color] || COLOR_BAR.slate;
   const cfg = (node.config || {}) as Record<string, any>;
   const ref = useRef<HTMLDivElement | null>(null);
@@ -70,14 +68,10 @@ export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, on
           cursor: 'pointer',
           minHeight: 64,
           boxSizing: 'border-box',
-          // v0.3.10 修复：把顶部类型色通过 CSS 变量 --node-color 注入，
-          // .node-card 用 border-top 渲染类型色，背景实底白避免重叠穿透。
-          '--node-color': color,
-          // v0.3.x: 运行出错的节点高亮红色
-          ...(error ? {
-            boxShadow: '0 0 0 2px #ef4444, 0 4px 12px rgba(239, 68, 68, 0.2)',
-            borderColor: '#ef4444',
-          } : {}),
+          // v0.3.6 修复：把顶部类型色相渐变通过 CSS 变量 --node-color 注入，
+          // .node-card 类的 background 会用 var(--node-color, #f1f5f9) 渲染。
+          // 避免内联 background 覆盖 .node-card 的 box-shadow 渲染层级导致 4 角黑点。
+          '--node-color': `${color}20`, // 类型色 + 12% alpha（更轻盈的渐变过渡）
         } as React.CSSProperties
       }
       data-node-id={node.id}
@@ -139,7 +133,7 @@ export function NodeRender({ node, def, selected, onPointerDown, onDuplicate, on
   );
 }
 
-function NodePreview({ kind, config, defName }: { kind: string; config: Record<string, any>; defName: string }) {
+function NodePreview({ kind, config }: { kind: string; config: Record<string, any>; defName?: string }) {
   const labelStyle: React.CSSProperties = { fontSize: 11, color: '#64748b', marginBottom: 2, fontWeight: 500 };
   const valueStyle: React.CSSProperties = { fontSize: 12, color: '#020617', fontFamily: "'JetBrains Mono', 'SF Mono', monospace" };
 
@@ -182,14 +176,14 @@ function NodePreview({ kind, config, defName }: { kind: string; config: Record<s
           </div>
         </div>
       );
-    case 'intent':
     case 'intent_router':
+    case 'branch':
       return (
         <div>
-          <div style={labelStyle}>意图分类</div>
-          <span className="awe-badge" style={{ fontSize: 11 }}>
-            {(config.labels as string[])?.length || 0} 个标签
-          </span>
+          <div style={labelStyle}>条件</div>
+          <code className="awe-badge" style={{ fontSize: 11 }}>
+            {(config.expression as string) || 'True'}
+          </code>
         </div>
       );
     case 'loop':
@@ -245,77 +239,6 @@ function NodePreview({ kind, config, defName }: { kind: string; config: Record<s
         <div>
           <div style={labelStyle}>改写风格</div>
           <span style={valueStyle}>{(config.style as string) || 'concise'}</span>
-        </div>
-      );
-    // 6.5.5 逻辑与控制流
-    case 'branch':
-      return (
-        <div>
-          <div style={labelStyle}>条件表达式</div>
-          <code className="awe-badge" style={{ fontSize: 11 }}>
-            {(config.condition as string) || 'True'}
-          </code>
-          <div style={{ marginTop: 4, display: 'flex', gap: 6 }}>
-            <span className="awe-badge awe-badge-success" style={{ fontSize: 10 }}>✓ {(config.true_label as string) || '通过'}</span>
-            <span className="awe-badge awe-badge-failed" style={{ fontSize: 10 }}>✗ {(config.false_label as string) || '未通过'}</span>
-          </div>
-        </div>
-      );
-    case 'loop_count':
-      return (
-        <div>
-          <div style={labelStyle}>次数循环</div>
-          <code className="awe-badge" style={{ fontSize: 11 }}>
-            执行 {(config.count as number) || 3} 次
-          </code>
-        </div>
-      );
-    case 'loop_list':
-      return (
-        <div>
-          <div style={labelStyle}>列表循环</div>
-          <div style={{ ...valueStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {(config.list_path as string) || 'data'}
-          </div>
-        </div>
-      );
-    case 'loop_dict':
-      return (
-        <div>
-          <div style={labelStyle}>字典循环</div>
-          <div style={{ ...valueStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {(config.dict_path as string) || 'data'}
-          </div>
-        </div>
-      );
-    case 'loop_condition':
-      return (
-        <div>
-          <div style={labelStyle}>条件循环</div>
-          <code className="awe-badge" style={{ fontSize: 11 }}>
-            {(config.condition as string) || 'True'}
-          </code>
-          <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 6 }}>
-            最大 {(config.max_iterations as number) || 100} 次
-          </span>
-        </div>
-      );
-    case 'parallel':
-      return (
-        <div>
-          <div style={labelStyle}>并行执行</div>
-          <span className="awe-badge" style={{ fontSize: 11 }}>
-            {(config.branch_count as number) || 2} 分支 · {(config.merge_strategy as string) || 'concat'}
-          </span>
-        </div>
-      );
-    case 'async_exec':
-      return (
-        <div>
-          <div style={labelStyle}>异步执行</div>
-          <span className="awe-badge" style={{ fontSize: 11 }}>
-            {(config.fire_and_forget as boolean) ? '即发即忘' : `超时 ${(config.timeout_sec as number) || 60}s`}
-          </span>
         </div>
       );
     default:

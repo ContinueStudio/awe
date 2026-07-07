@@ -147,8 +147,8 @@ export function BottomToolbar({
   isRunning,
   showNodePanel,
   onToggleNodePanel,
-  zoom,
-  nodeCount,
+  zoom: _zoom,
+  nodeCount: _nodeCount,
   onRecord,
   isRecording,
 }: Props) {

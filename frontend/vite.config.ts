@@ -20,5 +20,17 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    // Code splitting: 将大体积 vendor 拆分为独立 chunk
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          lucide: ['lucide-react'],
+        },
+      },
+    },
+    // Tree shaking: 启用压缩 + 去除 console
+    minify: 'esbuild',
+    target: 'es2020',
   },
 });

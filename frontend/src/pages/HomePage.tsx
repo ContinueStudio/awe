@@ -12,12 +12,9 @@ import {
   Plus, Search, MoreVertical, Pencil, Copy, Trash2, Download, Play, Loader2, Share2, ChevronLeft, ChevronRight, FilePlus2,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
 import { RunHistoryDrawer } from '@/components/RunHistoryDrawer';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { Workflow } from '@/lib/types';
-
-type HealthInfo = { ok: boolean; version: string };
 
 function StatusDot({ s }: { s: Workflow['last_status'] }) {
   if (s === 'succeeded') return <span className="status-dot status-dot-success" />;
@@ -63,7 +60,7 @@ export function WorkflowsPage({
   const [page, setPage] = useState(0);
   const [creating, setCreating] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [deleting, setDeleting] = useState(false);
+  const [_deleting, setDeleting] = useState(false);
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -539,6 +536,7 @@ export function WorkflowsPage({
         current={currentLogWf}
         open={!!logWf}
         onClose={() => setLogWf(null)}
+        onRun={() => logWf && runFromHome(logWf.id)}
         isRunning={logWf ? !!runningIds[logWf.id] : false}
       />
 
