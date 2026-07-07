@@ -1,15 +1,13 @@
 /**
- * 运行历史 - 左侧悬浮面板
+ * 运行历史 - 右侧抽屉 Drawer
  * - 通过 open/onClose 受控
  * - 列出当前工作流的所有运行（按时间倒序）
  * - 状态点 + 耗时
  * - 选中某次 run 后显示 logs + outputs + 错误
  * - 3s 自动刷新
- *
- * v0.3.10：改为左侧悬浮面板（与右侧 ConfigPanel 对应），非全高侧滑抽屉
  */
 import { useEffect, useState } from 'react';
-import { X, History, Loader2, CheckCircle2, XCircle, ChevronRight, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, History, Play, Loader2, CheckCircle2, XCircle, ChevronRight, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { RunLog, RunRecord, Workflow } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -37,11 +35,13 @@ export function RunHistoryDrawer({
   current,
   open,
   onClose,
+  onRun,
   isRunning,
 }: {
   current: Workflow | null;
   open: boolean;
   onClose: () => void;
+  onRun: () => void;
   isRunning: boolean;
 }) {
   const [runs, setRuns] = useState<RunRecord[]>([]);
@@ -81,137 +81,155 @@ export function RunHistoryDrawer({
   }, [selected]);
 
   return (
-    <aside
-      className={cn(
-        "fixed left-4 z-40 flex flex-col bg-white border border-slate-200 rounded-lg",
-        "shadow-[0_8px_32px_rgba(15,23,42,0.15)] transition-all duration-200",
-        !open && "opacity-0 pointer-events-none scale-95",
-      )}
-      style={{
-        top: 60,
-        width: 380,
-        height: 'calc(100vh - 76px)',
-        maxHeight: 800,
-        fontSize: 13,
-      }}
-    >
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <History className="w-4 h-4 text-slate-500 shrink-0" />
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-slate-800">运行历史</div>
-            <div className="text-[11px] text-slate-500 mt-0.5 truncate">
-              {current ? current.name : '请先选择工作流'}
+    <>
+      {/* 背景遮罩 */}
+      <div
+        onClick={onClose}
+        className={cn(
+          "fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-sm transition-opacity duration-200",
+          open ? "opacity-100" : "opacity-0 pointer-events-none",
+        )}
+      />
+      {/* 抽屉本体 */}
+      <aside
+        className={cn(
+          "fixed top-0 right-0 z-50 h-full w-[420px] max-w-[95vw] glass border-l border-slate-200/70 flex flex-col shadow-2xl",
+          "transition-all duration-300 ease-out",
+          open ? "translate-x-0 opacity-100" : "translate-x-full opacity-0 pointer-events-none overflow-hidden",
+        )}
+      >
+        {/* Header */}
+        <div className="px-4 py-4 border-b border-slate-200/60 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <History className="w-4 h-4 text-slate-500 shrink-0" />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-slate-800">运行历史</div>
+              <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                {current ? current.name : '请先选择工作流'}
+              </div>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-            title="关闭"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* 列表 */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto">
-          {!current && (
-            <div className="text-xs text-slate-400 px-4 py-8 text-center">
-              <Sparkles className="w-5 h-5 mx-auto mb-2 text-slate-300" />
-              请先选择工作流
-            </div>
-          )}
-          {current && runs.length === 0 && (
-            <div className="text-xs text-slate-400 px-4 py-8 text-center">
-              还没有运行过<br />点击「运行」开始
-            </div>
-          )}
-          {current && runs.length > 0 && (
-            <ul className="p-2 space-y-1">
-              {runs.map((r) => {
-                const badge = statusBadge(r.status);
-                const Icon = badge.icon;
-                const isSel = r.id === selected;
-                return (
-                  <li
-                    key={r.id}
-                    onClick={() => setSelected(r.id)}
-                    className={cn(
-                      "flex items-start gap-2 px-2.5 py-2 rounded-lg cursor-pointer border transition-colors",
-                      isSel ? "bg-brand-50 border-brand-200" : "hover:bg-slate-100 border-transparent",
-                    )}
-                  >
-                    <Icon className={cn(
-                      "w-3.5 h-3.5 mt-0.5 shrink-0",
-                      r.status === 'succeeded' && "text-emerald-500",
-                      r.status === 'failed' && "text-rose-500",
-                      r.status === 'running' && "text-amber-500 animate-spin",
-                    )} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[12px] font-mono text-slate-700 truncate">{r.id.slice(0, 8)}</span>
-                        <span className={cn("text-[10px] px-1.5 py-0 rounded border", badge.color)}>{badge.label}</span>
-                      </div>
-                      <div className="text-[10.5px] text-slate-400 mt-0.5">
-                        {fmt(r.started_at)} · {fmtDuration(r.started_at, r.finished_at)}
-                      </div>
-                      {r.error && <div className="text-[10.5px] text-rose-600 mt-0.5 truncate" title={r.error}>{r.error}</div>}
-                    </div>
-                    {isSel && <ChevronRight className="w-3.5 h-3.5 text-slate-400 mt-0.5" />}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={onRun}
+              disabled={!current || isRunning}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                "bg-slate-900 text-white",
+                "hover:bg-slate-800",
+                "disabled:opacity-50 disabled:cursor-not-allowed",
+              )}
+              title={current ? `运行「${current.name}」` : '请先选择工作流'}
+            >
+              {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+              {isRunning ? '运行中' : '运行'}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              title="关闭"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* 详情 */}
-        {detail && (
-          <div className="border-t border-slate-200/60 max-h-[55%] overflow-y-auto bg-white/40 shrink-0">
-            <Section
-              title={`Logs (${detail.state?.logs?.length ?? 0})`}
-              open={showLogs}
-              onToggle={() => setShowLogs((v) => !v)}
-            >
-              {(detail.state?.logs ?? []).map((lg, i) => (
-                <LogRow key={i} log={lg} />
-              ))}
-            </Section>
-            <Section
-              title="Outputs"
-              open={showOutputs}
-              onToggle={() => setShowOutputs((v) => !v)}
-            >
-              <pre className="allow-select text-[10.5px] text-slate-700 whitespace-pre-wrap break-all font-mono leading-relaxed">
-                {JSON.stringify(detail.state?.outputs ?? {}, null, 2)}
-              </pre>
-            </Section>
-            {detail.inputs && Object.keys(detail.inputs).length > 0 && (
-              <Section
-                title="Inputs"
-                open={showInputs}
-                onToggle={() => setShowInputs((v) => !v)}
-              >
-                <pre className="allow-select text-[10.5px] text-slate-700 whitespace-pre-wrap break-all font-mono leading-relaxed">
-                  {JSON.stringify(detail.inputs, null, 2)}
-                </pre>
-              </Section>
-            )}
-            {detail.error && (
-              <div className="px-3 py-2 bg-rose-50 border-t border-rose-200">
-                <div className="text-[10.5px] font-semibold text-rose-700 mb-1">Error</div>
-                <div className="allow-select text-[10.5px] text-rose-700 break-all">{detail.error}</div>
+        {/* 列表 */}
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 overflow-y-auto">
+            {!current && (
+              <div className="text-xs text-slate-400 px-4 py-8 text-center">
+                <Sparkles className="w-5 h-5 mx-auto mb-2 text-slate-300" />
+                请先在 Home 选择一个工作流
               </div>
             )}
+            {current && runs.length === 0 && (
+              <div className="text-xs text-slate-400 px-4 py-8 text-center">
+                还没有运行过<br />点击右上角「运行」开始
+              </div>
+            )}
+            {current && runs.length > 0 && (
+              <ul className="p-2 space-y-1">
+                {runs.map((r) => {
+                  const badge = statusBadge(r.status);
+                  const Icon = badge.icon;
+                  const isSel = r.id === selected;
+                  return (
+                    <li
+                      key={r.id}
+                      onClick={() => setSelected(r.id)}
+                      className={cn(
+                        "flex items-start gap-2 px-2.5 py-2 rounded-lg cursor-pointer border transition-colors",
+                        isSel ? "bg-brand-50 border-brand-200" : "hover:bg-slate-100 border-transparent",
+                      )}
+                    >
+                      <Icon className={cn(
+                        "w-3.5 h-3.5 mt-0.5 shrink-0",
+                        r.status === 'succeeded' && "text-emerald-500",
+                        r.status === 'failed' && "text-rose-500",
+                        r.status === 'running' && "text-amber-500 animate-spin",
+                      )} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[12px] font-mono text-slate-700 truncate">{r.id.slice(0, 8)}</span>
+                          <span className={cn("text-[10px] px-1.5 py-0 rounded border", badge.color)}>{badge.label}</span>
+                        </div>
+                        <div className="text-[10.5px] text-slate-400 mt-0.5">
+                          {fmt(r.started_at)} · {fmtDuration(r.started_at, r.finished_at)}
+                        </div>
+                        {r.error && <div className="text-[10.5px] text-rose-600 mt-0.5 truncate" title={r.error}>{r.error}</div>}
+                      </div>
+                      {isSel && <ChevronRight className="w-3.5 h-3.5 text-slate-400 mt-0.5" />}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
-        )}
-      </div>
-    </aside>
+
+          {/* 详情 */}
+          {detail && (
+            <div className="border-t border-slate-200/60 max-h-[55%] overflow-y-auto bg-white/40">
+              <Section
+                title={`Logs (${detail.state?.logs?.length ?? 0})`}
+                open={showLogs}
+                onToggle={() => setShowLogs((v) => !v)}
+              >
+                {(detail.state?.logs ?? []).map((lg, i) => (
+                  <LogRow key={i} log={lg} />
+                ))}
+              </Section>
+              <Section
+                title="Outputs"
+                open={showOutputs}
+                onToggle={() => setShowOutputs((v) => !v)}
+              >
+                <pre className="text-[10.5px] text-slate-700 whitespace-pre-wrap break-all font-mono leading-relaxed">
+                  {JSON.stringify(detail.state?.outputs ?? {}, null, 2)}
+                </pre>
+              </Section>
+              {detail.inputs && Object.keys(detail.inputs).length > 0 && (
+                <Section
+                  title="Inputs"
+                  open={showInputs}
+                  onToggle={() => setShowInputs((v) => !v)}
+                >
+                  <pre className="text-[10.5px] text-slate-700 whitespace-pre-wrap break-all font-mono leading-relaxed">
+                    {JSON.stringify(detail.inputs, null, 2)}
+                  </pre>
+                </Section>
+              )}
+              {detail.error && (
+                <div className="px-3 py-2 bg-rose-50 border-t border-rose-200">
+                  <div className="text-[10.5px] font-semibold text-rose-700 mb-1">Error</div>
+                  <div className="text-[10.5px] text-rose-700 break-all">{detail.error}</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -229,18 +247,15 @@ function Section({ title, open, onToggle, children }: { title: string; open: boo
 
 function LogRow({ log }: { log: RunLog }) {
   return (
-    <div className="flex flex-col text-[10.5px] py-0.5 allow-select">
-      <div className="flex items-center gap-2">
-        <span className={cn(
-          "w-1.5 h-1.5 rounded-full shrink-0",
-          log.ok ? "bg-emerald-500" : "bg-rose-500",
-        )} />
-        <span className="font-mono text-slate-500 shrink-0">{new Date(log.ts * 1000).toLocaleTimeString()}</span>
-        <span className="font-mono text-slate-700 shrink-0">{log.node}</span>
-        <span className="text-slate-500 shrink-0">{log.type}</span>
-        <span className="ml-auto font-mono text-slate-400 shrink-0">{log.ms ?? 0}ms</span>
-      </div>
-      {log.desc && <div className="text-[10px] text-slate-400 ml-[26px] mt-0.5 italic">{log.desc}</div>}
+    <div className="flex items-center gap-2 text-[10.5px] py-0.5">
+      <span className={cn(
+        "w-1.5 h-1.5 rounded-full shrink-0",
+        log.ok ? "bg-emerald-500" : "bg-rose-500",
+      )} />
+      <span className="font-mono text-slate-500 shrink-0">{new Date(log.ts * 1000).toLocaleTimeString()}</span>
+      <span className="font-mono text-slate-700 shrink-0">{log.node}</span>
+      <span className="text-slate-500 shrink-0">{log.type}</span>
+      <span className="ml-auto font-mono text-slate-400 shrink-0">{log.ms ?? 0}ms</span>
     </div>
   );
 }
