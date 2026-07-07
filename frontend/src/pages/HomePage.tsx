@@ -539,7 +539,6 @@ export function WorkflowsPage({
         onRun={() => logWf && runFromHome(logWf.id)}
         isRunning={logWf ? !!runningIds[logWf.id] : false}
       />
-
       {/* 自定义确认对话框 */}
       <ConfirmDialog
         open={confirmOpen}

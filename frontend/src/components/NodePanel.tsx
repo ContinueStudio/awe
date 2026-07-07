@@ -19,6 +19,7 @@ const COLOR_BAR: Record<string, string> = {
   rose:    '#f43f5e',
   slate:   '#475569',
   violet:  '#8b5cf6',
+  orange:  '#f97316',
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -27,9 +28,10 @@ const CATEGORY_LABEL: Record<string, string> = {
   knowledge: '知识 / 数据',
   external:  '外部生态',
   human:     '人类管理',
+  logic:     '逻辑与控制流',
 };
 
-const CATEGORY_ORDER: string[] = ['trigger', 'ai', 'knowledge', 'external', 'human'];
+const CATEGORY_ORDER: string[] = ['trigger', 'ai', 'knowledge', 'external', 'human', 'logic'];
 
 interface Props {
   onAdd: (type: string) => void;

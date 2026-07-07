@@ -2,7 +2,6 @@
  * HomePage 核心组件测试
  */
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
 import type { Workflow } from '@/lib/types';
 
 // 抽取 StatusBadge 逻辑做纯函数测试（免 DOM 依赖）

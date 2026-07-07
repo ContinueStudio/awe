@@ -19,7 +19,7 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     color: #020617; /* slate-950 */
-    background: #ffffff;
+    background: #f8fafc; /* slate-50 — 与 WebView2 窗口边框色一致，消除顶部黑边 */
   }
   body {
     font-feature-settings: "tnum" 1, "cv11" 1;
@@ -28,7 +28,24 @@
   }
   *, *::before, *::after {
     box-sizing: border-box;
+    /* v2.28：除输入控件外，禁用文字选中（更像桌面应用） */
+    user-select: none;
+    -webkit-user-select: none;
   }
+  /* 允许选中的元素：输入框、文本域、节点内容区 */
+  input, textarea, [contenteditable], .allow-select {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+}
+
+/* v2.29：PyWebview frameless 窗口拖动
+   - v2.28 用过 `-webkit-app-region: drag` 但 WebView2 不支持
+   - 现在走 pywebview.DRAG_REGION_SELECTOR=".awe-titlebar" 机制
+   - CSS 类只保留 user-select: none 避免文字选中 */
+.awe-titlebar {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* -------- 主题变量（shadcn slate） -------- */
@@ -113,9 +130,9 @@
      - 选中态保留双层阴影，但 hover/selected 用更深的 slate 阴影 + border 变 #0f172a。
      - 顶部类型色相渐变通过 CSS 变量 `--node-color` 注入，避免 NodeRender 用内联 background 破坏 .node-card 的 box-shadow 渲染。 */
 .node-card {
-  background: linear-gradient(180deg, var(--node-color, #f1f5f9) 0%, #ffffff 100%);
-  background-color: #ffffff;
+  background: #ffffff;
   border: 1px solid #e2e8f0;
+  border-top: 3px solid var(--node-color, #f1f5f9);
   border-radius: 12px;
   box-shadow:
     0 4px 12px rgba(0, 0, 0, 0.03),

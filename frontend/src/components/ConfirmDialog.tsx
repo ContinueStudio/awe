@@ -58,7 +58,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         style={{
           background: '#ffffff',
           borderRadius: 10,
-          border: '1px solid #e5e7eb',
+          border: '1px solid #e2e8f0',
           boxShadow: '0 4px 24px rgba(0, 0, 0, 0.12)',
           width: 400,
           maxWidth: '90vw',
@@ -71,7 +71,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           style={{
             fontSize: 15,
             fontWeight: 600,
-            color: '#111827',
+            color: '#020617',
             marginBottom: 8,
             display: 'flex',
             alignItems: 'center',
@@ -104,7 +104,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <div
           style={{
             fontSize: 13,
-            color: '#6b7280',
+            color: '#475569',
             lineHeight: 1.6,
             marginBottom: 20,
           }}
@@ -127,20 +127,20 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               height: 34,
               borderRadius: 6,
               background: '#ffffff',
-              border: '1px solid #e5e7eb',
-              color: '#6b7280',
+              border: '1px solid #e2e8f0',
+              color: '#475569',
               fontSize: 13,
               cursor: 'pointer',
               fontWeight: 500,
               transition: 'background 0.15s, border-color 0.15s',
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = '#f9fafb';
-              (e.currentTarget as HTMLButtonElement).style.borderColor = '#d1d5db';
+              (e.currentTarget as HTMLButtonElement).style.background = '#f8fafc';
+              (e.currentTarget as HTMLButtonElement).style.borderColor = '#cbd5e1';
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLButtonElement).style.background = '#ffffff';
-              (e.currentTarget as HTMLButtonElement).style.borderColor = '#e5e7eb';
+              (e.currentTarget as HTMLButtonElement).style.borderColor = '#e2e8f0';
             }}
           >
             {cancelText}
@@ -151,7 +151,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               padding: '0 16px',
               height: 34,
               borderRadius: 6,
-              background: danger ? '#dc2626' : 'var(--primary, #6366f1)',
+              background: danger ? '#dc2626' : 'var(--primary, #3b82f6)',
               border: 'none',
               color: '#ffffff',
               fontSize: 13,
@@ -162,12 +162,12 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLButtonElement).style.background = danger
                 ? '#b91c1c'
-                : 'var(--primary-hover, #4f46e5)';
+                : 'var(--primary-hover, #2563eb)';
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLButtonElement).style.background = danger
                 ? '#dc2626'
-                : 'var(--primary, #6366f1)';
+                : 'var(--primary, #3b82f6)';
             }}
           >
             {confirmText}
