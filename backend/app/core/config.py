@@ -38,7 +38,7 @@ class Settings:
 
     # 服务
     app_name: str = "AWE - Agentic Workflow Engine"
-    version: str = "0.1.0"
+    version: str = "0.2.0"
     host: str = os.getenv("AWE_HOST", "127.0.0.1")
     port: int = int(os.getenv("AWE_PORT", "8765"))
     debug: bool = os.getenv("AWE_DEBUG", "1") == "1"

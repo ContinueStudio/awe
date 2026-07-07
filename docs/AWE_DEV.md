@@ -1,255 +1,72 @@
 # AWE 开发文档 (Development Log)
 
 > **目的**：记录 AWE 项目的架构、当前进度、避坑项与下一步路线
-> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v2.31**（已落地）
+> **关联文档**：[AWE_PRD.md](./AWE_PRD.md) **v3.0**（PRD §1.2 §4.1 §8.1 §8.4）
 
 ---
 
-## 1. 当前进度 (v0.3.9 - 2026-07-06)
+## 1. 当前进度 (v0.3.7 - 2026-07-07 13:15)
 
-### 1.0 今日进展 (2026-07-06 17:20) -- v0.3.9：新增 7 个业务逻辑节点 (PRD v2.31)
+### 1.0 今日进展 (2026-07-07 13:15)
 
-**【本轮】v0.3.9：分支/循环/并行/异步逻辑节点**
+**【本轮】v0.3.7：阶段一 — 数据模型、回收站、加密存储、沙盒升级（PRD v3.0 §1.2 §4.1 §8.1 §8.4）**
 
-- ✅ **新增节点** (分类: logic, 颜色: orange #f97316):
-  - `branch` (判断器): 条件表达式 True/False 分支判断，两个输出端口 (result/rejected)
-  - `loop_count` (次数循环): 重复执行 N 次，输出 items/count
-  - `loop_list` (列表循环): 遍历列表，输出 item/index/total
-  - `loop_dict` (字典循环): 遍历字典，输出 key/value/index/total
-  - `loop_condition` (条件循环): While 条件循环，最大迭代保护
-  - `parallel` (并行执行): 多分支并行，可选合并策略
-  - `async_exec` (异步执行): 异步任务，支持即发即忘/等待完成
-- ✅ 后端: registry schema + builder 执行器 (_run_branch / _run_loop_* / _run_parallel / _run_async_exec)
-- ✅ 前端: NodeRender 类型预览 + orange 色条
-- 📋 构建: 260.46 kB / gzip 78.26 kB, hash CFIm3zrO
-- 📋 版本号: PRD v2.30 → v2.31, DEV v0.3.8 → v0.3.9
+共 6 项 P0 任务，全部完成并通过验证：
 
-### 1.0 今日进展 (2026-07-06 14:30) -- v0.3.8：复制粘贴 + 路径参数 + 自定义确认对话框 (PRD v2.30)
+- 🗄 **D-1: workflows 表扩展**（`backend/app/core/database.py`）：
+  - 新增 `workspace_id TEXT DEFAULT 'default'`、`version INTEGER DEFAULT 1`、`status TEXT DEFAULT 'draft'` 三个字段
+  - 旧数据库自动迁移（`_migrate_schema()` 通过 `PRAGMA table_info` 检测缺列后 `ALTER TABLE ADD COLUMN`）
+  - save/get/list 方法全部更新以处理新字段
 
-**【本轮】v0.3.8：节点复制粘贴 + Ctrl+C/V + 读写节点路径参数 (PRD v2.30)**
+- ♻ **D-2: 回收站机制**（`database.py` + `api/workflows.py`）：
+  - `delete_workflow()` 改为软删除（`status='deleted'`），原有 cascade delete 逻辑移入 `permanent_delete_workflow()`
+  - 新增 `restore_workflow()`（status→'draft'）、`list_trash_workflows()`（WHERE status='deleted'）
+  - `list_workflows()` 查询增加 `WHERE status != 'deleted'` 过滤
+  - API 新增：`GET /api/workflows/trash`、`PUT /api/workflows/{wid}/restore`、`DELETE /api/workflows/{wid}/permanent`
+  - ⚠️ **路由顺序避坑**：`GET /api/workflows/trash` 必须在 `GET /api/workflows/{wid}` **之前**声明，否则 "trash" 被 path param 捕获返回 404
 
-- 🐛 **Bug**: 节点内复制按钮点击无反应（NodeRender 未接收 onDuplicate 回调）
-- ✅ **修复**: 在 App.tsx 添加 `duplicateNode` / `copySelectedNodes` / `pasteNodes` 回调
-- ✅ **新增**: 节点剪贴板状态 (`clipboard`) 支持跨工作流粘贴
-- ✅ **新增**: Ctrl+C 复制选中/框选节点、Ctrl+V 粘贴（不拦截输入框）
-- ✅ **新增**: 画布右键菜单，粘贴 Ctrl+V 选项
-- 📋 **构建**: 257.93 kB / gzip 77.48 kB
+- 🗑 **D-3: 前端回收站页面**（`pages/TrashPage.tsx` + `LeftNav.tsx` + `App.tsx`）：
+  - 新增 TrashPage：表格展示已删除工作流，支持"还原"和"彻底删除"（二次确认），3s 自动刷新
+  - LeftNav 新增"回收站"导航项（Trash2 图标），NavKey 扩展 `'trash'` 类型
+  - App.tsx 增加 trash 路由
 
-**【本轮】v0.3.8b：读写节点路径参数暴露**
+- 🔐 **D-4: API Key 加密存储**（`core/crypto.py` + `database.py` 新增 settings 表）：
+  - 使用 `cryptography.fernet` (AES-128-CBC + HMAC) 加密
+  - 主密钥首次启动时随机生成并写入 `.env` 的 `AWE_SECRET_KEY`，后续启动直接读取
+  - `encrypt()` / `decrypt()` 函数，空字符串输入直接返回空
+  - 增加 `settings` 表（key-value）用于存储加密后的 API Key
+  - API 新增：`GET/POST/DELETE /api/settings`，POST 时自动对 openai/anthropic/google key 加密
 
-- ✅ **节点配置 schema 更新**:
-  - `knowledge` 新增 `storage_path`（ChromaDB 目录）
-  - `sqlite` 新增 `db_path`（数据库文件路径）
-  - `excel_save_records` `filename` → `file_path`（全路径）
-  - `skill` 新增 `working_dir`（脚本工作目录）
-- ✅ **builder.py**: `_chroma_path(cfg)` 优先用 `cfg.storage_path`；`_run_sqlite` 优先用 `cfg.db_path`；`_run_excel_save_records` 用 `file_path`
-- ✅ **sandbox.py**: `run_user_code` 增加 `working_dir` 参数，注入为 `working_dir` 全局变量
-- 📋 **配套代码版本**: frontend v0.3.8 + backend v0.1.1
+- ⚙ **D-5: 设置页 API Key 表单**（`pages/SettingsPage.tsx`）：
+  - 顶部显示后端连接+CDP端口范围
+  - LiteLLM 区域：OpenAI / Anthropic / Google 三组 API Key 输入（密码框 + 显示切换 + 保存按钮）
+  - 已配置状态显示 ✅ + 清除按钮；未配置显示输入框
+  - 默认模型输入框，失焦自动保存
+  - `duplicate onBlur` 修复：合并 border 样式恢复 + saveKey 到单个 onBlur
 
-**【本轮】v0.3.8c：自定义确认对话框（删除工作流 + 关闭程序）**
+- 🛡 **D-6: Skill_Python 沙盒升级**（`engine/sandbox.py` 重写）：
+  - **主防线**：`sys.addaudithook` 从 Python 运行时底层拦截高危操作（exec/eval/compile/subprocess.Popen/os.system/os.exec*/os.popen/os.fork）
+  - **文件写入拦截**：open() 写模式 + 绝对路径/`..` 穿越 → RuntimeError
+  - **网络隔离**：socket.connect 仅允许 localhost/127.0.0.1/::1，其他地址拒绝
+  - **审计开关**：通过 `_audit_enabled` 全局标志在每次 exec 前后启用/关闭
+  - **辅助防线**：保留 AST 静态审计作为编译期补充检查
+  - 模块导入时注册 `sys.addaudithook(_audit_callback)`，失败时记录 warning 降级为纯 AST 模式
 
-- ✅ **ConfirmDialog 组件**: 白底 + slate 边框 + fixed 居中 + 无系统提示音 + 中文
-- ✅ **HomePage**: 替换 `confirm()`/`alert()` 为 ConfirmDialog + pageToast
-- ✅ **App.tsx**: 关闭确认对话框 + `__showCloseConfirm` 全局函数
-- ✅ **Python 端**: `confirm_close=False` + `force_close()` + `on_closing` 拦截
-- 📋 **版本号**: PRD v2.29 → v2.30, DEV v0.3.7i → v0.3.8
-
-**【避坑】v0.3.8c 补丁：关闭按钮卡死根因与修复**
-
-- 🐛 **Bug**: 点击关闭按钮 → 显示确认对话框 → 点击确定 → Python 未响应（卡死）
-- **根因**: `on_closing` 事件回调中调用 `evaluate_js` 通知前端显示确认对话框。`evaluate_js` 在 Python 的 WebView2 线程中是同步阻塞调用，但 `closing` 回调本身也运行在主线程。用户点击确定后调用 `window.destroy()`，再次触发 `closing` 事件 → 再次 `evaluate_js` → 死锁。
-- **修复**: 移除 `launch_window.py` 和 `main.py` 的 `on_closing` 事件拦截，让前端自行管理关闭确认流程：
-  - 关闭按钮 `onClick` → 直接 `setCloseConfirmOpen(true)`（不调用 Python API）
-  - 用户确认 → 调用 `api.close_window()` → 直接 `window.destroy()`（无拦截）
-- 💡 **避坑**: 永远不要在 `closing` 事件回调中使用 `evaluate_js`（或任何需要与 JS 交互的阻塞调用），会导致死锁
-- 涉及文件: `launch_window.py`, `main.py`
-- GitHub: ffbb0a9
-
-### 1.0 今日进展 (2026-07-06 15:45) -- v0.3.8 patch 2
-
-- 🐛 **Bug 1**: 节点内删除按钮点击无反应（Canvas 未传递 onDelete）
-  - 修复: Canvas.tsx 添加 `onDeleteNode` prop 传递给 NodeRender
-- 🐛 **Bug 2**: 复制按钮立即创建节点，不符合预期
-  - 修复: `duplicateNode` 只存入剪贴板，提示 "Ctrl+V 粘贴"
-- 🐛 **Bug 3**: 填了 file_path 但运行提示缺少必填字段
-  - 根因: handleRun 只在 workflow 无 ID 时才保存，修改后未保存就运行
-  - 修复: `handleRun` / `handleRunSingleNode` / `handleRunSelectedNodes` 都先 `handleSave()`
-- ✅ **新增**: 运行失败不再 alert，改为自动弹出左侧运行日志面板
-- ✅ **新增**: 错误节点高亮红色边框（从错误信息解析节点 ID 或从 run logs 提取）
-- 📋 **构建**: 258.63 kB / gzip 77.79 kB
-- GitHub: 92fec85
-
-### 1.0 今日进展 (2026-07-06 22:30)
-
-**【本轮】v0.3.7i：WebView2 拖动用 pywebview DRAG_REGION_SELECTOR (PRD v2.29)**
-
-- 🐛 **Bug**: v2.28 用 `.awe-titlebar { -webkit-app-region: drag }` 后，标题栏**仍然不能拖动**
-- 🐛 **根因**: **WebView2 不支持 `-webkit-app-region`**（只对 Electron/NW.js/部分 WebKit 生效）
-- ✅ **修复**:
-  - `desktop/launch_window.py` 加 `webview.DRAG_REGION_SELECTOR = ".awe-titlebar"`
-  - pywebview customize.js 在 mousedown 时调用 pywebviewMoveWindow API 移动窗口
-  - 走 Python 端处理，绕开浏览器层限制
-  - `.awe-titlebar` 删掉 `-webkit-app-region`，只留 `user-select: none`
-- 💡 **避坑**:
-  - WebView2 不支持 `-webkit-app-region`
-  - pywebview frameless 拖动靠 Python 端
-- 📋 **版本号**: PRD v2.28 → v2.29, DEV v0.3.7h → v0.3.7i
-
-### 1.0 今日进展 (2026-07-06 22:25)
-
-**【本轮】v0.3.7h：禁用文字选中 + 标题栏可拖动 (PRD v2.28)**
-
-- 🐛 **Bug 1**: 文字全部可选中（"像网页上的文字"）
-  - 修复：`index.css` 加 `* { user-select: none }`，例外只放 input/textarea
-- 🐛 **Bug 2**: 标题栏点击无法拖动
-  - 根因：React `WebkitAppRegion: 'drag'` style 被 TS 类型擦除
-  - 修复：改用 CSS class `.awe-titlebar { -webkit-app-region: drag }` 写在 index.css
-- 📋 **构建**: 246.98 kB / gzip 74.76 kB, 新 hash `index-Jtj7S9Ug.js`
-- 📋 **版本号**: PRD v2.27 → v2.28, DEV v0.3.7g → v0.3.7h
-- 💡 **沉淀**: WebView2 上 CSS class 比 React style 更可靠，避 TS 类型擦除
-
-### 1.0 今日进展 (2026-07-06 22:00)
-
-**【本轮】v0.3.7g：start.bat GBK 编码修复 (PRD v2.26)**
-
-- 🐛 **Bug**: v2.25 改完没测就发，start.bat 跑起来一堆 `'PY' 不是内部或外部命令`
-- 🐛 **根因**: `set "PY=..."` 写在 `if exist` 块内被 cmd 拆 token
-- ✅ **修复**:
-  - `set "PY=..."` 提到外层
-  - 备注行全部 ASCII（GBK 不会乱码）
-  - `set "ARGS=--window %*"` 预组参数
-- ✅ **实测**: PowerShell 跑 `.\start.bat --skip-port-clean` → 200 OK
-- 📋 **沉淀**: 修改 start.bat 后必须实测，set 不能在 if 块内部分赋值
-- 📋 **版本号**: PRD v2.25 → v2.26, DEV v0.3.7f → v0.3.7g
-
-### 1.0 今日进展 (2026-07-06 21:55)
-
-**【本轮】v0.3.7f：一键启动脚本默认走窗口模式 (PRD v2.25)**
-
-- 🐛 **Bug**: `start.bat` 默认调 `python start.py` 没带 `--window`，仍然弹浏览器
-- ✅ **修复**: `start.bat` 第 15 行加入 `--window` 默认参数，保留 `%*` 让用户可加额外参数
-- 📋 **新行为**:
-  - `start.bat` → 桌面窗口（不再弹浏览器）
-  - `start.bat --dev` → 窗口 + Vite HMR
-  - `start.bat --window --skip-port-clean` → 跳过端口清理
-- 📋 **版本号**: PRD v2.24 → v2.25, DEV v0.3.7e → v0.3.7f
-
-### 1.0 今日进展 (2026-07-06 21:25)
-
-**【本轮】v0.3.7e：窗口标题缩短 + 顶部边框配色统一 (PRD v2.24)**
-
-- 🐛 **Bug**: 窗口标题"AWE - 智能体工作流引擎"过长；WebView2 顶部出现黑色边框
-- ✅ **变更**：
-  - `desktop/launch_window.py` title → `" "`（空格）
-  - `App.tsx` 根容器背景 `#ffffff` → `#f8fafc`（侧栏色）
-  - `index.css` html/body 背景 → `#f8fafc`
-- 📋 **构建**：244.93 kB / gzip 74.41 kB，新 hash `index-DB1DyVTS.js`
-- 📋 **版本号**：PRD v2.23 → v2.24，desktop v0.1.0 → v0.1.1
-
-### 1.0 今日进展 (2026-07-06 21:05)
-
-**【本轮】v0.3.7d：桌面窗口模式 (PRD v2.23)**
-
-- ✅ **背景**：`python start.py` 启动后默认 `webbrowser.open()` 弹浏览器，老大反馈"应该是独立窗口而不是网页"。
-- ✅ **变更**：
-  - 新增 `desktop/launch_window.py`（PyWebview 加载 `file://` dist）
-  - `start.py` 加 `--window` 参数（强制走 dist，不起 Vite dev，不弹浏览器）
-  - 子进程用 `find_python()` 选出的 venv 解释器，确保 `pywebview` 可 import
 - 🐛 **避坑**：
-  - pywebview `Window.expose(name=...)` 参数在新版本不存在 → 删除 expose 调用
-  - 默认 `python` 是 workbuddy 3.13.12（无 pywebview）→ `start.py` 子进程必须用 `find_python()` 选 venv
-- 📋 **启动命令**：
-  ```bash
-  python start.py --window --skip-port-clean
-  ```
-- 📋 **版本号**：PRD v2.22 → v2.23，desktop v0.1.0
+  - **FastAPI 路由顺序**：`/workflows/trash` 是字面路径，必须在 `/workflows/{wid}` path param 之前声明
+  - **SQLite 迁移**：用 `PRAGMA table_info` 查列 → `ALTER TABLE ADD COLUMN` 是唯一安全方式（SQLite 不支持 `IF NOT EXISTS` 对列）
+  - **sys.addaudithook 线程安全**：hook 回调在 exec 线程执行，通过全局 `_audit_enabled` 标志控制开关，线程执行完后 finally 中关闭
+  - **重复 onBlur**：React JSX 不允许同一元素两个 onBlur 属性，需合并到一个 handler
+  - **cryptography 模块**：venv 中已有 49.0.0（被其他依赖间接引入），`requirements.txt` 显式声明了 `>=42.0` 防止 future removal
+  - **Node 22 不能用 `node_modules/.bin/vite`**：shell shebang 解析失败，需用 `npx.cmd vite build`
 
-### 1.0 今日进展 (2026-07-06 21:00)
+- ✅ **构建验证**：`npx vite build` → 1594 modules → 0 errors, 0 warnings → dist hash `DXa_zGgN`
+- ✅ **bundle 验证**：dist JS 包含 `回收站`、`LiteLLM`、`已删除` 等新标识
+- ✅ **底层测试**：crypto encrypt/decrypt → 数据库迁移 → save/get 新字段 → soft delete → trash list → restore → permanent delete → list filter → 6/6 通过
+- ✅ **API 烟测**：create → list → soft delete 移入回收站 → trash 有 1 项 → restore 还原 → list 恢复 → permanent delete 清空 → settings 读/写/加密 → 13/13 通过
+- ✅ **前端 serve**：HTTP 200 + `index-DXa_zGgN.js` 正确返回
 
-**【本轮】v0.3.7c：右键菜单智能删除 (PRD v2.22)**
-
-- 🐛 **Bug**: v2.20-v2.21 引入键控多选后，右键菜单"删除"仍调 `deleteOne(menu.id)` → 多选状态下只删一条
-- ✅ **代码变更**：`HomePage.tsx`
-  - 新增 `smartDelete(primaryId)`：右键时如果 primaryId 在 selectedIds 中 → 走 `batchDelete()`
-  - 菜单文本动态化：单选 `删除` / 多选 `删除选中 (N)`
-  - fallback：右键未选中行 → 走 `deleteOne(primaryId)` 单删
-- 📋 **构建**：1592 modules / 244.91 kB / gzip 74.41 kB
-- 📋 **版本号**：v0.3.7b → v0.3.7c，PRD v2.21 → v2.22
-
-### 1.0 今日进展 (2026-07-06 20:50)
-
-**【本轮】v0.3.7b：单击选中 + 双击进入编辑 (PRD v2.21)**
-
-- ✅ **变更背景**：v0.3.7a 改为键控多选后，"普通点击=进入编辑" 与 "普通点击=选中" 行为冲突
-- ✅ **代码变更**：`HomePage.tsx`
-  - `handleRowClick`：单击仅选中，不再调 `onOpen`
-  - 新增 `handleRowDoubleClick`：双击进入编辑器
-  - `WfRow` 组件新增 `onDoubleClick` 事件
-  - 浏览器原生 300ms 内双击判定
-- ✅ **保持**：Shift/Ctrl 多选、Delete 批量删除、ESC 清除
-
-- 📋 **构建**：1592 modules / 244.82 kB / gzip 74.35 kB，新 hash `index-DTpQusAy.js`
-
-- 📋 **版本号**：v0.3.7a → v0.3.7b，PRD v2.20 → v2.21
-
-### 1.0 今日进展 (2026-07-06 20:30)
-
-**【本轮】v0.3.7a：工作流列表交互重构 (PRD v2.20)**
-
-- ✅ **重构背景**：v0.3.7 的"复选框列 + 顶部批量操作栏"反馈视觉占用大，对单行操作形成干扰。改用键控多选。
-
-- ✅ **代码变更**：`HomePage.tsx`
-  - 移除：表头全选复选框列、每行复选框、顶部"取消选择"和"删除选中(N)"按钮
-  - 新增：`handleRowClick(id, e)` 统一处理名称点击
-    - 普通点击 → 选中并打开编辑器
-    - Shift + 点击 → 范围选择（从 lastSelectedId 到当前 id）
-    - Ctrl/Cmd + 点击 → 多选切换
-  - 新增键控交互：Delete/Backspace → 批量删除、ESC → 清除选择
-  - 新增状态：`lastSelectedId` 记录锚点
-
-- 🐛 **修复 405**：`POST /api/workflows/batch-delete` 后端端点已存在但**没重启后端**，所以测试报 405。重启后端后端点正常返回 `{"ok":true,"deleted":0,"total":0}`
-
-- 📋 **构建结果**：
-  - TypeScript 编译零错误
-  - Vite 生产构建：1592 modules / 244.74 kB / gzip 74.34 kB
-  - 新 hash：`index-DU3FqW2H.js`
-
-- 📋 **版本号**：v0.3.7 → v0.3.7a，PRD v2.19 → v2.20
-
-- 🐛 **避坑**（v0.3.7a 沉淀）：
-  - Shift 范围选择必须有锚点（lastSelectedId），否则只是单点切换
-  - 列表 Delete 键 vs 画布 Delete 键不冲突：监听时检查 target.tagName
-  - 后端新增端点后必须重启 uvicorn 才能生效（`reload=True` 模式除外）
-  - grid 列数从 5 列回到 4 列以保持与 v2.18 视觉一致
-
-### 1.0 今日进展 (2026-07-06 19:30)
-
-**【本轮】v0.3.7：工作流列表批量选择/删除 + 画布 Shift 框选（PRD v2.19）**
-
-- ✅ **功能 1 — 工作流列表批量选择与删除**：
-  - `HomePage.tsx`：表头新增全选复选框（全选/半选/未选三态），每行新增复选框
-  - 选中后顶部浮现批量操作栏（"取消选择" + "删除选中(N)"红色按钮）
-  - 选中行高亮为蓝色浅底（`rgba(59,130,246,0.06)`）
-  - 新增自定义 `CheckBox` / `CheckAllBox` 组件（SVG 勾选图标，18x18px，4px 圆角）
-  - 后端新增 `POST /api/workflows/batch-delete` 端点，接受 `{ids: [...]}` 批量删除
-  - 前端 `api.ts` 新增 `batchDeleteWorkflows(ids)` 方法
-
-- ✅ **功能 2 — 画布 Shift 拖动框选**：
-  - `Canvas.tsx`：`selectedId` 单值升级为 `selectedIds: Set<string>` 多选
-  - 节点点击：Shift + 点击 → 多选切换，普通点击 → 单选
-  - 画布空白区：Shift + 拖动 → 框选模式（半透明蓝色虚线矩形），松手后选中矩形内节点
-  - 普通拖动 → 平移画布（保持不变）
-  - Delete/Backspace 删除所有选中节点及其连线
-  - Add `boxSelect` state 驱动框选矩形渲染
-
-- 📋 **版本号** v0.3.6 → v0.3.7
-
-- 📋 **PRD 同步**：升级到 v2.19（`AWE_PRD.md` §1.8 增量说明）
-
-- 🐛 **避坑**（v0.3.7 沉淀）：
-  - Canvas 框选时需在 mousemove 中实时更新矩形终点，mouseup 时计算交集并清除框选 state
-  - `selectedIds` 从 `string | null` 升级为 `Set<string>` 后，需全面替换所有引用（包括 onClick 回调中的行内 setter）
-  - 批量删除按钮的 `deleting` loading 状态可防止用户重复点击
+### 1.0 今日进展 (2026-07-06 01:30)
 
 **【本轮】v0.3.6：节点 4 角黑点彻底根因修复 + 顶栏 lawe 风格化 + BottomToolbar flex 居中（PRD v2.18）**
 

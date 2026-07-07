@@ -16,6 +16,7 @@ from ..engine.builder import WorkflowBuilder
 from ..engine.state import RunState
 from ..engine.validator import validate_graph
 from ..nodes.registry import registry
+from ..core.crypto import encrypt as crypto_encrypt, decrypt as crypto_decrypt
 
 logger = get_logger("awe.api.workflows")
 router = APIRouter()
@@ -85,6 +86,12 @@ def upsert_workflow(body: WorkflowUpsert) -> Dict[str, Any]:
     return {"id": wid}
 
 
+@router.get("/workflows/trash")
+def list_trash_workflows() -> Dict[str, Any]:
+    """列出回收站中的工作流。"""
+    return {"workflows": db.list_trash_workflows()}
+
+
 @router.get("/workflows/{wid}")
 def get_workflow(wid: str) -> Dict[str, Any]:
     wf = db.get_workflow(wid)
@@ -95,9 +102,26 @@ def get_workflow(wid: str) -> Dict[str, Any]:
 
 @router.delete("/workflows/{wid}")
 def delete_workflow(wid: str) -> Dict[str, Any]:
+    """软删除：移入回收站。"""
     if not db.delete_workflow(wid):
         raise HTTPException(404, "workflow not found")
-    return {"ok": True}
+    return {"ok": True, "action": "soft_delete"}
+
+
+@router.put("/workflows/{wid}/restore")
+def restore_workflow(wid: str) -> Dict[str, Any]:
+    """从回收站还原工作流。"""
+    if not db.restore_workflow(wid):
+        raise HTTPException(404, "workflow not found in trash")
+    return {"ok": True, "action": "restore"}
+
+
+@router.delete("/workflows/{wid}/permanent")
+def permanent_delete_workflow(wid: str) -> Dict[str, Any]:
+    """物理删除：彻底清除（回收站二次确认后调用）。"""
+    if not db.permanent_delete_workflow(wid):
+        raise HTTPException(404, "workflow not found")
+    return {"ok": True, "action": "permanent_delete"}
 
 
 @router.post("/workflows/batch-delete")
@@ -280,6 +304,41 @@ async def run_selected_nodes(wid: str, body: RunNodes) -> Dict[str, Any]:
         "error": result.get("error", ""),
     }
     return JSONResponse(content=json.loads(_safe_json(body_out)))
+
+
+# ---------------- 设置 ----------------
+
+class SettingUpdate(BaseModel):
+    key: str = Field(..., min_length=1, max_length=100)
+    value: str = Field(..., max_length=10_000)
+
+
+@router.get("/settings")
+def list_settings() -> Dict[str, Any]:
+    """返回所有公开配置项（敏感值仅返回是否已配置）。"""
+    return {
+        "openai_api_key_encrypted": bool(db.get_setting("openai_api_key")),
+        "anthropic_api_key_encrypted": bool(db.get_setting("anthropic_api_key")),
+        "google_api_key_encrypted": bool(db.get_setting("google_api_key")),
+        "llm_default_model": db.get_setting("llm_default_model"),
+    }
+
+
+@router.post("/settings")
+def update_setting(body: SettingUpdate) -> Dict[str, Any]:
+    """写入单条设置项（API Key 自动加密存储）。"""
+    _encrypted_keys = {"openai_api_key", "anthropic_api_key", "google_api_key"}
+    stored_value = crypto_encrypt(body.value) if body.key in _encrypted_keys and body.value else body.value
+
+    db.set_setting(body.key, stored_value)
+    return {"ok": True, "key": body.key}
+
+
+@router.delete("/settings/{key:path}")
+def delete_setting(key: str) -> Dict[str, Any]:
+    """删除单条设置项。"""
+    db.set_setting(key, "")
+    return {"ok": True}
 
 
 @router.get("/runs/{run_id}")

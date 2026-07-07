@@ -12,8 +12,7 @@
  * - 文字主色 #020617（slate-950），边框 #e2e8f0（slate-200）
  * - 字体 Inter
  */
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import React from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Undo2, Redo2, History as HistoryIcon, Loader2, Rocket } from 'lucide-react';
 import { api } from '@/lib/api';
 import { LeftNav, NavKey } from './components/LeftNav';
@@ -21,14 +20,13 @@ import { WorkflowsPage as HomePage } from './pages/HomePage';
 import { NodesPage } from './pages/NodesPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { TrashPage } from './pages/TrashPage';
 import { Canvas } from './components/Canvas';
 import { NodePanel } from './components/NodePanel';
 import { BottomToolbar } from './components/BottomToolbar';
 import { ConfigPanel } from './components/ConfigPanel';
 import { ZoomControls } from './components/ZoomControls';
-import { RunHistoryDrawer } from './components/RunHistoryDrawer';
-import { ConfirmDialog } from './components/ConfirmDialog';
-import type { NodeDefinition, Workflow, WorkflowGraph, CanvasNode } from '@/lib/types';
+import type { NodeDefinition, Workflow, WorkflowGraph } from '@/lib/types';
 
 const EMPTY_GRAPH: WorkflowGraph = { nodes: [], edges: [] };
 
@@ -79,100 +77,14 @@ export default function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
   const [showNodePanel, setShowNodePanel] = useState(false);
-  // v0.3.10：画布选择模式（true=框选/false=平移）
-  const [selectMode, setSelectMode] = useState(false);
-  const [showRunHistory, setShowRunHistory] = useState(false);
-  // v0.3.11：画布多选节点 id 集合
-  const [selectedNodeIds, setSelectedNodeIdsState] = useState<Set<string>>(new Set());
   // v0.3.5 升级：zoom (scalar) → canvasView ({ x, y, scale })，由父组件管理，传递给 Canvas 实现左下角缩放控件
   const [canvasView, setCanvasView] = useState<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 1 });
   const [toast, setToast] = useState<string | null>(null);
-
-  // v0.3.x: 关闭程序确认对话框
-  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
-  const pendingCloseRef = useRef(false);
-
-  // v0.3.x: 节点剪贴板（支持跨工作流粘贴）
-  const [clipboard, setClipboard] = useState<CanvasNode[] | null>(null);
-  // v0.3.x: 运行出错的节点 ID 集合（高亮红色）
-  const [errorNodeIds, setErrorNodeIds] = useState<Set<string>>(new Set());
-
-  // 复制选中节点（Ctrl+C）
-  const copySelectedNodes = useCallback(() => {
-    if (view.kind !== 'editor') return;
-    const selIds = selectedNodeIds.size > 0 ? selectedNodeIds : (selectedNodeId ? new Set([selectedNodeId]) : new Set());
-    if (selIds.size === 0) return;
-    const copied = graph.nodes.filter((n) => selIds.has(n.id)).map((n) => ({ ...n, config: { ...(n.config || {}) } }));
-    setClipboard(copied);
-    setToast(`已复制 ${copied.length} 个节点`);
-  }, [view, graph, selectedNodeIds, selectedNodeId]);
-
-  // 粘贴剪贴板节点（Ctrl+V / 右键粘贴）
-  const pasteNodes = useCallback(() => {
-    if (view.kind !== 'editor' || !clipboard || clipboard.length === 0) return;
-    const offsetX = 40 * (graph.nodes.length + 1);
-    const offsetY = 40 * (graph.nodes.length + 1);
-    const newNodes: CanvasNode[] = clipboard.map((n, i) => ({
-      ...n,
-      id: `n_${Date.now().toString(36)}_${i}`,
-      config: { ...(n.config || {}) },
-      meta: {
-        ...(n.meta || {}),
-        x: (n.meta?.x ?? 200) + offsetX,
-        y: (n.meta?.y ?? 120) + offsetY,
-      },
-    }));
-    setGraph((prev) => ({ ...prev, nodes: [...prev.nodes, ...newNodes] }));
-    const newIds = new Set(newNodes.map((n) => n.id));
-    setSelectedNodeIdsState(newIds);
-    setToast(`已粘贴 ${newNodes.length} 个节点`);
-  }, [view, clipboard, graph.nodes.length]);
-
-  // 复制单个节点到剪贴板（点击节点内复制按钮，只复制不创建）
-  const duplicateNode = useCallback((nodeId: string) => {
-    const node = graph.nodes.find((n) => n.id === nodeId);
-    if (!node) return;
-    setClipboard([{ ...node, config: { ...(node.config || {}) } }]);
-    setToast('已复制到剪贴板，Ctrl+V 粘贴');
-  }, [graph]);
-
-  // 删除单个节点
-  const deleteNode = useCallback((nodeId: string) => {
-    setGraph((prev) => ({
-      nodes: prev.nodes.filter((n) => n.id !== nodeId),
-      edges: prev.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
-    }));
-    if (selectedNodeId === nodeId) {
-      setSelectedNodeId(null);
-      setConfigOpen(false);
-    }
-    setErrorNodeIds((prev) => {
-      const next = new Set(prev);
-      next.delete(nodeId);
-      return next;
-    });
-  }, [selectedNodeId]);
-
-  // v2.37：frameless 模式下整栏拖动 handler，主标题栏和编辑器顶栏共用
-  const onWindowDragMouseDown = useWindowDrag();
-
-  // 编辑器顶栏内部按钮/输入框阻止 drag 冒泡，避免点击它们时误拖动窗口
-  const stopDrag = (e: React.MouseEvent) => e.stopPropagation();
 
   // ---- 启动 ----
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth({ ok: false, version: 'unknown' }));
     api.listNodes().then((d) => setNodes(d.nodes)).catch(console.error);
-  }, []);
-
-  // v0.3.x: 注册全局关闭确认函数，供 Python closing 事件调用
-  useEffect(() => {
-    (window as any).__showCloseConfirm = () => {
-      setCloseConfirmOpen(true);
-    };
-    return () => {
-      delete (window as any).__showCloseConfirm;
-    };
   }, []);
 
   // toast 自动消失
@@ -292,114 +204,31 @@ export default function App() {
     }
   }, [view, currentName, graph]);
 
-  // Ctrl+S 保存 / Ctrl+C 复制 / Ctrl+V 粘贴
+  // Ctrl+S 保存
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-      if (isInput) return; // 不拦截输入框内的快捷键
-
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         if (view.kind === 'editor') handleSave();
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-        if (view.kind === 'editor') {
-          e.preventDefault();
-          copySelectedNodes();
-        }
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-        if (view.kind === 'editor') {
-          e.preventDefault();
-          pasteNodes();
-        }
-      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [handleSave, view, copySelectedNodes, pasteNodes]);
+  }, [handleSave, view]);
 
   const handleRun = useCallback(async () => {
     if (view.kind !== 'editor') return;
-    // 每次运行前自动保存，确保最新配置写入数据库
-    await handleSave();
+    if (!view.wf.id) {
+      await handleSave();
+    }
     const targetWfId = view.wf.id;
-    if (!targetWfId) return;
-    setErrorNodeIds(new Set());
     setIsRunning(true);
-    setShowRunHistory(true); // 每次运行都弹出左侧日志
     try {
-      const result = await api.runWorkflow(targetWfId, {});
-      setToast(`运行完成: ${result.status}`);
-      // 高亮失败的节点
-      if (result.logs) {
-        const failedIds = new Set(result.logs.filter((l) => !l.ok).map((l) => l.node));
-        setErrorNodeIds(failedIds);
-      }
+      await api.runWorkflow(targetWfId, {});
+      setToast('已触发运行，查看 Home 页日志');
     } catch (e) {
       console.error('run failed', e);
-      const errMsg = (e as Error).message || '';
-      // 尝试从错误信息中提取节点 ID（如 "节点 n2:"）
-      const nodeMatch = errMsg.match(/节点\s+([a-zA-Z0-9_]+)/);
-      if (nodeMatch) {
-        setErrorNodeIds(new Set([nodeMatch[1]]));
-      }
-      setToast('运行失败，请查看日志');
-    } finally {
-      setIsRunning(false);
-    }
-  }, [view, handleSave]);
-
-  // v0.3.11：单节点测试运行
-  const handleRunSingleNode = useCallback(async () => {
-    if (view.kind !== 'editor' || !selectedNodeId) return;
-    await handleSave();
-    const targetWfId = view.wf.id;
-    if (!targetWfId) return;
-    setErrorNodeIds(new Set());
-    setIsRunning(true);
-    setShowRunHistory(true);
-    try {
-      const result = await api.runSingleNode(targetWfId, selectedNodeId, {});
-      setToast(`节点 ${selectedNodeId.slice(0, 6)} 试运行完成`);
-      if (result.logs) {
-        const failedIds = new Set(result.logs.filter((l) => !l.ok).map((l) => l.node));
-        setErrorNodeIds(failedIds);
-      }
-    } catch (e) {
-      console.error('single run failed', e);
-      setErrorNodeIds(new Set([selectedNodeId]));
-      setToast('试运行失败，请查看日志');
-    } finally {
-      setIsRunning(false);
-    }
-  }, [view, selectedNodeId, handleSave]);
-
-  // v0.3.11：框选运行
-  const handleRunSelectedNodes = useCallback(async (nodeIds: string[]) => {
-    if (view.kind !== 'editor') return;
-    await handleSave();
-    const targetWfId = view.wf.id;
-    if (!targetWfId) return;
-    setErrorNodeIds(new Set());
-    setIsRunning(true);
-    setShowRunHistory(true);
-    try {
-      const result = await api.runSelectedNodes(targetWfId, nodeIds, {});
-      setToast(`框选 ${nodeIds.length} 个节点运行完成`);
-      if (result.logs) {
-        const failedIds = new Set(result.logs.filter((l) => !l.ok).map((l) => l.node));
-        setErrorNodeIds(failedIds);
-      }
-    } catch (e) {
-      console.error('selected run failed', e);
-      const errMsg = (e as Error).message || '';
-      const nodeMatch = errMsg.match(/节点\s+([a-zA-Z0-9_]+)/);
-      if (nodeMatch) {
-        setErrorNodeIds(new Set([nodeMatch[1]]));
-      }
-      setToast('框选运行失败，请查看日志');
+      alert('运行失败：' + (e as Error).message);
     } finally {
       setIsRunning(false);
     }
@@ -430,9 +259,7 @@ export default function App() {
       return (
         <div className="h-full w-full flex flex-col" style={{ background: '#f8fafc' }}>
           {/* 顶栏（v0.3.6 - 严格按 lawe 风格：紧凑 + 精致 + 黑白灰） */}
-          {/* v2.37：加整栏拖动，但内部按钮/输入框阻止冒泡避免误触发 */}
           <header
-            onMouseDown={onWindowDragMouseDown}
             style={{
               height: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '0 12px 0 8px', flexShrink: 0,
@@ -443,7 +270,6 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
               <button
                 onClick={backToHome}
-                onMouseDown={stopDrag}
                 title="返回工作流列表"
                 style={{
                   width: 28, height: 28, borderRadius: 6,
@@ -488,7 +314,6 @@ export default function App() {
               <input
                 value={currentName}
                 onChange={(e) => setCurrentName(e.target.value)}
-                onMouseDown={stopDrag}
                 style={{
                   flex: 1,
                   maxWidth: 380,
@@ -515,7 +340,7 @@ export default function App() {
                 padding: '1px 6px', background: '#f8fafc', border: '1px solid #e2e8f0',
                 borderRadius: 4, flexShrink: 0,
               }}>
-                v0.3.6
+                v0.3.7
               </span>
             </div>
 
@@ -523,7 +348,6 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
               <button
                 onClick={onUndo}
-                onMouseDown={stopDrag}
                 title="撤销 Ctrl+Z"
                 style={{
                   width: 28, height: 28, borderRadius: 6,
@@ -545,7 +369,6 @@ export default function App() {
               </button>
               <button
                 onClick={onRedo}
-                onMouseDown={stopDrag}
                 title="重做 Ctrl+Y"
                 style={{
                   width: 28, height: 28, borderRadius: 6,
@@ -571,7 +394,6 @@ export default function App() {
               {/* 版本历史按钮（次按钮样式 - lawe 风格细边白底） */}
               <button
                 onClick={onOpenVersionHistory}
-                onMouseDown={stopDrag}
                 title="版本历史"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,
@@ -598,7 +420,6 @@ export default function App() {
               {/* 发版按钮（品牌蓝底白字 + Rocket 图标） */}
               <button
                 onClick={handleSave}
-                onMouseDown={stopDrag}
                 disabled={isSaving}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,
@@ -636,16 +457,10 @@ export default function App() {
               onChange={setGraph}
               onWorkflowId={() => {}}
               onWorkflowName={setCurrentName}
-              onSelectNode={(id) => { setSelectedNodeId(id); setConfigOpen(!!id); if (id) setErrorNodeIds((prev) => { const next = new Set(prev); next.delete(id); return next; }); }}
+              onSelectNode={(id) => { setSelectedNodeId(id); setConfigOpen(!!id); }}
               onSave={() => {}}
-              onDuplicateNode={duplicateNode}
-              onDeleteNode={deleteNode}
-              onPaste={() => pasteNodes()}
-              errorNodeIds={errorNodeIds}
               view={canvasView}
               onViewChange={setCanvasView}
-              selectMode={selectMode}
-              onSelectedIdsChange={setSelectedNodeIdsState}
             />
 
             <BottomToolbar
@@ -655,11 +470,6 @@ export default function App() {
               onToggleNodePanel={() => setShowNodePanel((v) => !v)}
               zoom={canvasView.scale}
               nodeCount={graph.nodes.length}
-              selectMode={selectMode}
-              onToggleSelectMode={() => setSelectMode((v) => !v)}
-              onShowLogs={() => setShowRunHistory(true)}
-              selectedNodeIds={selectedNodeIds}
-              onRunSelected={() => handleRunSelectedNodes(Array.from(selectedNodeIds))}
             />
 
             {/* v0.3.5 新增：左下角缩放控件（fixed 视口定位，不受 Canvas 缩放影响） */}
@@ -705,17 +515,9 @@ export default function App() {
                 onDelete={deleteSelectedNode}
                 onChange={updateNodeConfig}
                 isRunning={isRunning}
-                onRun={handleRunSingleNode}
+                onRun={handleRun}
               />
             )}
-
-            {/* v0.3.10：运行日志抽屉 */}
-            <RunHistoryDrawer
-              current={currentWf}
-              open={showRunHistory}
-              onClose={() => setShowRunHistory(false)}
-              isRunning={isRunning}
-            />
           </div>
 
           {/* Toast */}
@@ -747,6 +549,9 @@ export default function App() {
     if (view.kind === 'settings') {
       return <SettingsPage health={health} />;
     }
+    if (view.kind === 'trash') {
+      return <TrashPage />;
+    }
     return null;
   };
 
@@ -759,167 +564,14 @@ export default function App() {
         </div>
       ) : (
         // 其它页面：左 240 导航 + 右内容
-        // 整层背景用 #f8fafc（侧栏色），与 WebView2 边框色一致 → 消除"顶部黑色边框"
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: '#f8fafc' }}>
-          {/* v2.27：frameless 模式下的自定义标题栏 */}
-          <CustomTitleBar onMouseDown={onWindowDragMouseDown} onClose={() => setCloseConfirmOpen(true)} />
-          <div style={{ display: 'flex', flex: 1, minHeight: 0, width: '100%' }}>
-            <LeftNav active={navKey} onChange={navigate} health={health} />
-            <main style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden', background: '#ffffff' }}>
-              {renderContent()}
-            </main>
-          </div>
+        <div style={{ display: 'flex', height: '100%', width: '100%', background: '#ffffff' }}>
+          <LeftNav active={navKey} onChange={navigate} health={health} />
+          <main style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden' }}>
+            {renderContent()}
+          </main>
         </div>
       )}
-
-      {/* 关闭程序确认对话框 */}
-      <ConfirmDialog
-        open={closeConfirmOpen}
-        title="关闭程序"
-        message="确定要退出 AWE 吗？未保存的更改可能会丢失。"
-        confirmText="退出"
-        cancelText="取消"
-        danger={false}
-        onConfirm={() => {
-          setCloseConfirmOpen(false);
-          pendingCloseRef.current = true;
-          const api = (window as any).pywebview?.api;
-          if (api?.force_close) {
-            api.force_close();
-          } else if (api?.close_window) {
-            api.close_window();
-          }
-        }}
-        onCancel={() => {
-          setCloseConfirmOpen(false);
-          pendingCloseRef.current = false;
-        }}
-      />
     </>
-  );
-}
-
-/* ---------- 窗口拖动 hook（v2.37 抽出复用） ----------
-   frameless 模式下整栏拖动：mousedown 同步初始化 Python 端权威位置，
-   mousemove 发送 CSS 逻辑像素增量给 move_window_delta。 */
-function useWindowDrag() {
-  const inPywebview = typeof (window as any).pywebview !== 'undefined';
-  const api = inPywebview ? (window as any).pywebview.api : null;
-
-  const dragRef = React.useRef<{ active: boolean; lastX: number; lastY: number }>({
-    active: false, lastX: 0, lastY: 0,
-  });
-
-  const onMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    // 同步初始化 Python 端权威窗口位置（GetWindowRect，不 await）
-    api?.start_drag?.();
-    dragRef.current = {
-      active: true,
-      lastX: e.screenX,
-      lastY: e.screenY,
-    };
-  };
-
-  // 全局 mousemove / mouseup
-  React.useEffect(() => {
-    if (!inPywebview) return;
-    const onMove = (e: MouseEvent) => {
-      if (!dragRef.current.active) return;
-      const dx = e.screenX - dragRef.current.lastX;
-      const dy = e.screenY - dragRef.current.lastY;
-      if (dx === 0 && dy === 0) return;
-      dragRef.current.lastX = e.screenX;
-      dragRef.current.lastY = e.screenY;
-      api?.move_window_delta?.(dx, dy);
-    };
-    const onUp = () => {
-      dragRef.current.active = false;
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [inPywebview, api]);
-
-  return onMouseDown;
-}
-
-/* ---------- 自定义标题栏 (v2.27 frameless 模式) ----------
-   pywebview 6.x 没有 title_bar_color / icon 参数
-   → 用 frameless=True 去掉原生 chrome
-   → 前端自绘标题栏：slate-50 背景 + 拖动区 + 最小/最大/关闭
-   → 通过 window.pywebview.api.{minimize,close}() 与 Python 通讯 */
-function CustomTitleBar({ onMouseDown, onClose }: { onMouseDown: (e: React.MouseEvent) => void; onClose?: () => void }) {
-  const inPywebview = typeof (window as any).pywebview !== 'undefined';
-  const api = inPywebview ? (window as any).pywebview.api : null;
-
-  // 整栏可拖动（PyWebview frameless 模式）
-  // v2.28：用 CSS class 替代 React style，避免 -webkit-app-region 类型问题
-  const baseStyle: React.CSSProperties = {
-    height: 32,
-    background: '#f8fafc',
-    borderBottom: '1px solid #e2e8f0',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '0 8px 0 12px',
-    flexShrink: 0,
-  };
-
-  return (
-    <div
-      className="awe-titlebar"
-      style={baseStyle}
-      onMouseDown={onMouseDown}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#64748b' }}>
-        <span style={{ fontWeight: 600, color: '#020617' }}>AWE</span>
-        <span style={{ color: '#cbd5e1' }}>·</span>
-        <span>智能体工作流引擎</span>
-      </div>
-
-      <div style={{ display: 'flex' }}>
-        <button
-          onClick={() => api?.minimize?.()}
-          title="最小化"
-          style={{
-            width: 32, height: 32, border: 'none', background: 'transparent',
-            color: '#64748b', cursor: 'pointer', display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-          }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '#e2e8f0')}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'transparent')}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" /></svg>
-        </button>
-        <button
-          onClick={() => onClose ? onClose() : api?.close_window?.()}
-          title="关闭"
-          style={{
-            width: 32, height: 32, border: 'none', background: 'transparent',
-            color: '#64748b', cursor: 'pointer', display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = '#dc2626';
-            (e.currentTarget as HTMLButtonElement).style.color = '#ffffff';
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-            (e.currentTarget as HTMLButtonElement).style.color = '#64748b';
-          }}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12">
-            <line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5" />
-            <line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" strokeWidth="1.5" />
-          </svg>
-        </button>
-      </div>
-    </div>
   );
 }
 

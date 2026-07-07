@@ -1,8 +1,14 @@
-"""受限 Python 沙盒。
+"""受限 Python 沙盒（PRD §8.1）。
 
-基于 RestrictedPython 拦截高危调用，再加 ast 静态审计兜底：
-- 屏蔽 os.system / subprocess / eval / exec / open(写) / __import__
-- 超时通过信号/线程中断（受限环境下用 thread + 主线程 join）
+安全策略（双层防护）：
+1. sys.addaudithook — 从 Python 运行时底层拦截高危操作
+2. AST 静态审计 — 编译期补充检查
+
+拦截项：
+- exec / eval / compile（反射逃逸）
+- os.system / os.popen / os.exec* / subprocess.Popen（子进程）
+- socket.connect（非 localhost 外连）
+- open() 写模式访问绝对路径或 .. 穿越
 """
 from __future__ import annotations
 
@@ -10,63 +16,129 @@ import ast
 import asyncio
 import builtins
 import io
+import os
+import socket
 import sys
 import threading
 import time
 import traceback
 from contextlib import redirect_stderr, redirect_stdout
-from typing import Any, Dict
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 from ..core.config import settings
 from ..core.logger import get_logger
 
 logger = get_logger("awe.sandbox")
 
-# 高危 ast 节点白名单
-_FORBIDDEN_AST = (
-    ast.Call,
-    ast.Import,
-    ast.ImportFrom,
-)
+# ── 审计开关 ──────────────────────────────────────────
+_audit_enabled: bool = False
+_audit_working_dir: str = ""
 
 
-_DENY_NAMES = {
-    # shell 字符串注入类（最容易出事）
+# ── sys.addaudithook 回调 ─────────────────────────────
+
+_BLOCKED_AUDIT_EVENTS = frozenset({
+    "exec",              # exec() / eval() / compile()
+    "subprocess.Popen",  # 子进程拉起
+    "os.system",
+    "os.exec",
+    "os.execve",
+    "os.spawn",
+    "os.popen",
+    "os.fork",
+    "os.forkpty",
+})
+
+
+def _audit_callback(event: str, args: tuple) -> None:
+    """底层拦截回调：在用户代码线程中同步执行，可 raise 阻断。"""
+    if not _audit_enabled:
+        return
+
+    if event in _BLOCKED_AUDIT_EVENTS:
+        raise RuntimeError(
+            f"[sandbox] 高危调用被拦截: {event} — "
+            f"Skill 脚本不允许执行子进程或动态代码"
+        )
+
+    if event == "open":
+        _audit_open(*args)
+
+    if event == "socket.connect":
+        _audit_socket_connect(*args)
+
+
+def _audit_open(path: Any, mode: str, flags: int) -> None:
+    """拦截文件写入操作：仅允许相对路径 + 不能 .. 穿越。"""
+    mode_str = str(mode)
+    if not ("w" in mode_str or "a" in mode_str or "x" in mode_str or "+" in mode_str):
+        return  # 只读模式放行
+
+    path_str = str(path)
+    # 绝对路径拒绝
+    if os.path.isabs(path_str):
+        raise RuntimeError(f"[sandbox] 文件写入被拦截: {path_str}（禁止绝对路径写入）")
+    # 路径穿越拒绝
+    if ".." in Path(path_str).parts:
+        raise RuntimeError(f"[sandbox] 文件写入被拦截: {path_str}（禁止 .. 路径穿越）")
+
+
+def _audit_socket_connect(address: Any, *_: Any) -> None:
+    """仅允许 localhost / 127.0.0.1 连接，禁止外连。"""
+    host = None
+    if isinstance(address, tuple) and len(address) >= 1:
+        host = address[0]
+    elif isinstance(address, str):
+        # Unix socket path → 放行
+        host = address
+
+    if not host:
+        return
+
+    host = str(host).lower().strip()
+    if host not in ("localhost", "127.0.0.1", "::1"):
+        raise RuntimeError(f"[sandbox] 网络连接被拦截: {host}（仅允许 localhost）")
+
+
+# 模块导入时注册全局 audit hook
+try:
+    sys.addaudithook(_audit_callback)
+    logger.info("沙盒 audit hook 已注册（sys.addaudithook）")
+except Exception:
+    logger.warning("sys.addaudithook 注册失败，沙盒仅依赖 AST 审计")
+
+
+# ── AST 静态审计（辅助兜底）────────────────────────────
+
+_DENY_NAMES = frozenset({
     "os.system",
     "os.popen",
     "os.execv",
     "os.execvp",
-    # 反射 + 代码自执行类
+    "os.execve",
     "exec",
     "eval",
     "compile",
-    # 直接文件写
-    "open",
-    # 用户输入（死循环风险）
+    "open",       # 配合 audit hook 做双重拦截
     "input",
-    # 反射类（绕过审计）
     "globals",
     "locals",
     "vars",
     "getattr",
     "setattr",
     "delattr",
-}
+})
 
 
 def _ast_audit(code: str) -> str | None:
-    """ast 静态审计：拦截高危函数调用 + subprocess shell=True。
-
-    允许 import（DrissionPage / pywinauto / os / subprocess 都是 RPA 常用库），
-    只在「具体危险调用」层面拦截。
-    """
+    """AST 静态审计：在编译期拦截高危语法（补充防线）。"""
     try:
         tree = ast.parse(code)
     except SyntaxError as exc:
         return f"语法错误: {exc.msg} (line {exc.lineno})"
 
     def _called_name(func: ast.AST) -> str | None:
-        """把 func 节点序列化成 'os.system' 这种点号形式。"""
         parts: list[str] = []
         cur = func
         while isinstance(cur, ast.Attribute):
@@ -82,7 +154,6 @@ def _ast_audit(code: str) -> str | None:
             name = _called_name(node.func)
             if name and name in _DENY_NAMES:
                 return f"高危调用被拦截: {name}()"
-            # subprocess.Popen(..., shell=True) 也算 shell 注入，禁止
             if name == "subprocess.Popen":
                 for kw in node.keywords:
                     if kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True:
@@ -90,22 +161,33 @@ def _ast_audit(code: str) -> str | None:
     return None
 
 
+# ── 受限 builtins ──────────────────────────────────────
+
 _SAFE_BUILTINS: Dict[str, Any] = {}
-# 从当前解释器拷贝一份完整 builtins dict，让所有 Python 内置名字（next/iter/
-# FileNotFoundError/RuntimeError 等等）都可用。安全靠 _ast_audit 拦截高危调用来兜底。
+
 import builtins as _b
 if isinstance(_b.__dict__, dict):
     _SAFE_BUILTINS = dict(_b.__dict__)
-# 抹掉最危险的几个函数，ast 审计同时也拦一遍作为冗余
+
 for _bad in ("exec", "eval", "compile", "input"):
     _SAFE_BUILTINS.pop(_bad, None)
 
 
-def _exec_sync(code: str, glb: Dict[str, Any], out: io.StringIO, err: io.StringIO) -> Dict[str, Any]:
-    """在线程中跑用户代码，结果写回 out / err。"""
+# ── 执行引擎 ───────────────────────────────────────────
+
+def _exec_sync(code: str, glb: Dict[str, Any], out: io.StringIO, err: io.StringIO, working_dir: str) -> Dict[str, Any]:
+    """在隔离线程中执行用户代码，启用 audit hook 拦截。"""
+    global _audit_enabled, _audit_working_dir
+
+    _audit_working_dir = working_dir
+    _audit_enabled = True
+
     try:
+        if working_dir and working_dir not in sys.path:
+            sys.path.insert(0, working_dir)
+
         with redirect_stdout(out), redirect_stderr(err):
-            exec(  # noqa: S102 - 沙盒内受控执行
+            exec(  # noqa: S102 — 受 audit hook + AST 双重保护
                 compile(code, "<skill>", "exec"),
                 glb,
             )
@@ -113,6 +195,13 @@ def _exec_sync(code: str, glb: Dict[str, Any], out: io.StringIO, err: io.StringI
     except Exception:  # noqa: BLE001
         err.write(traceback.format_exc())
         return None
+    finally:
+        _audit_enabled = False
+        if working_dir and working_dir in sys.path:
+            try:
+                sys.path.remove(working_dir)
+            except ValueError:
+                pass
 
 
 async def run_user_code(
@@ -121,20 +210,19 @@ async def run_user_code(
     extra_globals: Dict[str, Any] | None = None,
     working_dir: str | None = None,
 ) -> Dict[str, Any]:
-    """异步执行用户脚本。
+    """异步执行用户脚本（受 audit hook + AST 双层保护）。
 
-    extra_globals 注入额外的全局变量（最常用的是 inputs）。
-    working_dir 指定的工作目录路径会注入为全局变量，方便脚本文件读写。
-    仍然受 _DENY_NAMES 审计；超过 timeout 强制中断。
+    extra_globals 注入额外全局变量（最常用的是 inputs）。
+    working_dir 指定工作目录，注入为全局变量 working_dir。
     """
     timeout = timeout or settings.skill_sandbox_timeout_sec
 
-    # 1) ast 审计
+    # 1) AST 静态审计
     audit_err = _ast_audit(code)
     if audit_err:
         return {"result": None, "stdout": "", "stderr": audit_err, "ok": False, "audit_blocked": True}
 
-    # 2) 受控执行
+    # 2) 准备执行环境
     glb: Dict[str, Any] = {
         "__builtins__": _SAFE_BUILTINS,
         "result": None,
@@ -145,14 +233,23 @@ async def run_user_code(
         for k, v in extra_globals.items():
             if k not in _DENY_NAMES:
                 glb[k] = v
-    out, err = io.StringIO(), io.StringIO()
 
+    out, err = io.StringIO(), io.StringIO()
     loop = asyncio.get_running_loop()
-    fut = loop.run_in_executor(None, _exec_sync, code, glb, out, err)
+    fut = loop.run_in_executor(
+        None,
+        _exec_sync,
+        code,
+        glb,
+        out,
+        err,
+        working_dir or "",
+    )
 
     try:
         await asyncio.wait_for(fut, timeout=timeout)
     except asyncio.TimeoutError:
+        _audit_enabled = False
         return {
             "result": None,
             "stdout": out.getvalue()[: settings.skill_sandbox_max_output],
@@ -161,6 +258,7 @@ async def run_user_code(
             "timeout": True,
         }
     except Exception as exc:  # noqa: BLE001
+        _audit_enabled = False
         return {
             "result": None,
             "stdout": out.getvalue()[: settings.skill_sandbox_max_output],

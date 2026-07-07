@@ -42,6 +42,9 @@ export interface Workflow {
   name: string;
   description: string;
   graph: WorkflowGraph;
+  workspace_id?: string;
+  version?: number;
+  status?: 'draft' | 'published' | 'deleted';
   created_at: number;
   updated_at: number;
   run_count?: number;

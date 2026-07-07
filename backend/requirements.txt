@@ -6,6 +6,7 @@ python-multipart>=0.0.9
 httpx>=0.26
 langgraph>=0.2
 langchain-core>=0.3
+cryptography>=42.0  # API Key 加密（Fernet）
 litellm>=1.40
 chromadb>=0.4
 pydantic-settings>=2.1

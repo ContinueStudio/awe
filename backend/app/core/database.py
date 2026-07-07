@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS workflows (
     name TEXT NOT NULL,
     description TEXT DEFAULT '',
     graph_json TEXT NOT NULL,
+    workspace_id TEXT DEFAULT 'default',
+    version INTEGER DEFAULT 1,
+    status TEXT DEFAULT 'draft',
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
 );
@@ -66,6 +69,12 @@ CREATE TABLE IF NOT EXISTS schedules (
     inputs_json TEXT DEFAULT '{}',
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at REAL NOT NULL
 );
 """
 
@@ -123,6 +132,22 @@ class Database:
     def _init_schema(self) -> None:
         with _LOCK, self._conn() as conn:
             conn.executescript(SCHEMA)
+        self._migrate_schema()
+
+    def _migrate_schema(self) -> None:
+        """安全迁移：为已有表添加新列（兼容旧数据库升级）。"""
+        _migrations = [
+            ("workflows", "workspace_id", "TEXT DEFAULT 'default'"),
+            ("workflows", "version", "INTEGER DEFAULT 1"),
+            ("workflows", "status", "TEXT DEFAULT 'draft'"),
+        ]
+        with _LOCK, self._conn() as conn:
+            for table, col, definition in _migrations:
+                existing = conn.execute(f"PRAGMA table_info({table})").fetchall()
+                existing_cols = {row[1] for row in existing}
+                if col not in existing_cols:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
+                    logger.info("DB migrate: added %s.%s", table, col)
 
     # ---------- workflow ----------
 
@@ -139,15 +164,15 @@ class Database:
         with _LOCK, self._conn() as conn:
             conn.execute(
                 """
-                INSERT INTO workflows(id,name,description,graph_json,created_at,updated_at)
-                VALUES(?,?,?,?,?,?)
+                INSERT INTO workflows(id,name,description,graph_json,workspace_id,version,status,created_at,updated_at)
+                VALUES(?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     description=excluded.description,
                     graph_json=excluded.graph_json,
                     updated_at=excluded.updated_at
                 """,
-                (wid, name, description, graph_json, now, now),
+                (wid, name, description, graph_json, "default", 1, "draft", now, now),
             )
         return wid
 
@@ -156,39 +181,93 @@ class Database:
             row = conn.execute("SELECT * FROM workflows WHERE id=?", (wid,)).fetchone()
         if not row:
             return None
+        _keys = row.keys()
         return {
             "id": row["id"],
             "name": row["name"],
             "description": row["description"],
             "graph": json.loads(row["graph_json"]),
+            "workspace_id": row["workspace_id"] if "workspace_id" in _keys else "default",
+            "version": row["version"] if "version" in _keys else 1,
+            "status": row["status"] if "status" in _keys else "draft",
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
 
     def list_workflows(self) -> List[Dict[str, Any]]:
-        """列出工作流，每个附 run_count / last_status / last_started_at。"""
+        """列出工作流（排除已删除到回收站的），每个附 run_count / last_status / last_started_at。"""
         with _LOCK, self._conn() as conn:
             rows = conn.execute(
                 """
                 SELECT w.id, w.name, w.description, w.created_at, w.updated_at,
+                       w.workspace_id, w.version, w.status,
                        (SELECT COUNT(*) FROM runs r WHERE r.workflow_id = w.id) AS run_count,
                        (SELECT status    FROM runs r WHERE r.workflow_id = w.id ORDER BY started_at DESC LIMIT 1) AS last_status,
                        (SELECT started_at FROM runs r WHERE r.workflow_id = w.id ORDER BY started_at DESC LIMIT 1) AS last_started_at
                 FROM workflows w
+                WHERE w.status != 'deleted' OR w.status IS NULL
                 ORDER BY w.updated_at DESC
                 """
             ).fetchall()
         return [dict(r) for r in rows]
 
     def delete_workflow(self, wid: str) -> bool:
-        """删除工作流，并级联清理其 runs / checkpoints / schedules。"""
+        """软删除：将 status 标记为 'deleted'（移入回收站）。"""
         with _LOCK, self._conn() as conn:
-            # 先清掉关联数据，避免悬空记录
+            cur = conn.execute(
+                "UPDATE workflows SET status='deleted', updated_at=? WHERE id=?",
+                (_now(), wid),
+            )
+        return cur.rowcount > 0
+
+    def permanent_delete_workflow(self, wid: str) -> bool:
+        """物理删除：彻底清除工作流及其关联数据（回收站二次确认后调用）。"""
+        with _LOCK, self._conn() as conn:
             conn.execute("DELETE FROM checkpoints WHERE run_id IN (SELECT id FROM runs WHERE workflow_id=?)", (wid,))
             conn.execute("DELETE FROM runs WHERE workflow_id=?", (wid,))
             conn.execute("DELETE FROM schedules WHERE workflow_id=?", (wid,))
             cur = conn.execute("DELETE FROM workflows WHERE id=?", (wid,))
         return cur.rowcount > 0
+
+    def restore_workflow(self, wid: str) -> bool:
+        """从回收站还原：将 status 改回 'draft'。"""
+        with _LOCK, self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE workflows SET status='draft', updated_at=? WHERE id=? AND status='deleted'",
+                (_now(), wid),
+            )
+        return cur.rowcount > 0
+
+    def list_trash_workflows(self) -> List[Dict[str, Any]]:
+        """列出回收站中已软删除的工作流。"""
+        with _LOCK, self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT w.id, w.name, w.description, w.created_at, w.updated_at,
+                       w.workspace_id, w.version, w.status,
+                       (SELECT COUNT(*) FROM runs r WHERE r.workflow_id = w.id) AS run_count
+                FROM workflows w
+                WHERE w.status = 'deleted'
+                ORDER BY w.updated_at DESC
+                """
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ---------- settings ----------
+
+    def get_setting(self, key: str) -> Optional[str]:
+        """读取配置项值。"""
+        with _LOCK, self._conn() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+        return row["value"] if row else None
+
+    def set_setting(self, key: str, value: str) -> None:
+        """写入配置项值。"""
+        with _LOCK, self._conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO settings(key,value,updated_at) VALUES(?,?,?)",
+                (key, value, _now()),
+            )
 
     # ---------- run ----------
 

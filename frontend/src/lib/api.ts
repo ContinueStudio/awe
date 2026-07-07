@@ -64,4 +64,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ ids }),
     }),
+  /** 列出回收站中已软删除的工作流 */
+  listTrashWorkflows: () => http<{ workflows: Workflow[] }>('/workflows/trash'),
+  /** 从回收站还原工作流 */
+  restoreWorkflow: (id: string) =>
+    http<{ ok: boolean }>(`/workflows/${id}/restore`, { method: 'PUT' }),
+  /** 物理删除（彻底清除）*/
+  permanentDeleteWorkflow: (id: string) =>
+    http<{ ok: boolean }>(`/workflows/${id}/permanent`, { method: 'DELETE' }),
 };

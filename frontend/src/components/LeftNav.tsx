@@ -10,10 +10,11 @@ import {
   Boxes,
   History,
   Settings as SettingsIcon,
+  Trash2,
   type LucideIcon,
 } from 'lucide-react';
 
-export type NavKey = 'workflows' | 'nodes' | 'history' | 'settings';
+export type NavKey = 'workflows' | 'nodes' | 'history' | 'settings' | 'trash';
 
 interface NavItem {
   key: NavKey;
@@ -25,6 +26,7 @@ const ITEMS: NavItem[] = [
   { key: 'workflows', label: '工作流列表', icon: LayoutGrid },
   { key: 'nodes',     label: '节点管理',   icon: Boxes },
   { key: 'history',   label: '执行历史',   icon: History },
+  { key: 'trash',     label: '回收站',     icon: Trash2 },
   { key: 'settings',  label: '设置',       icon: SettingsIcon },
 ];
 
@@ -125,7 +127,7 @@ export function LeftNav({ active, onChange, health }: Props) {
 
       {/* 底部版本号 */}
       <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', fontSize: 10, color: '#94a3b8' }}>
-        v0.3.6
+        v0.3.7
       </div>
     </aside>
   );
